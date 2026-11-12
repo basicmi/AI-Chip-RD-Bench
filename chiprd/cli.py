@@ -1,20 +1,20 @@
-"""CLI: python -m chiprd.cli {smoke,verify,synth,all,mutation}."""
+"""CLI for the evidence-gated CORDIC benchmark."""
 from __future__ import annotations
-
 import argparse
 import json
 from pathlib import Path
-
+from .formal import run_formal, run_formal_negative_control
 from .harness import ROOT, run
 from .mutation import run_mutations
 from .oracle import expected, vectors
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Evidence-gated CORDIC Phase 0 benchmark")
-    parser.add_argument("mode", choices=["smoke", "verify", "synth", "all", "mutation"])
-    parser.add_argument("--candidate", type=Path,
-                        default=ROOT / "tasks" / "cordic" / "cordic_rotator.sv")
+    parser = argparse.ArgumentParser(description="Evidence-gated CORDIC benchmark")
+    parser.add_argument("mode", choices=[
+        "smoke", "verify", "synth", "all", "mutation", "formal", "formal-negative-control"
+    ])
+    parser.add_argument("--candidate", type=Path, default=ROOT / "tasks/cordic/cordic_rotator.sv")
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
@@ -25,6 +25,10 @@ def main() -> int:
         return 0
     if args.mode == "mutation":
         result = run_mutations(args.candidate, args.output, seed=args.seed)
+    elif args.mode == "formal":
+        result = run_formal(args.candidate, args.output)
+    elif args.mode == "formal-negative-control":
+        result = run_formal_negative_control(args.candidate, args.output)
     else:
         result = run(args.candidate, args.output, mode=args.mode, seed=args.seed)
     print(json.dumps(result, indent=2, sort_keys=True))

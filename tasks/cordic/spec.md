@@ -9,11 +9,15 @@
 - `output_valid` is asserted for one cycle on completion.
 - `x_out, y_out` are signed Q2.14 approximations of `cos(angle)` and `sin(angle)`.
 - For the default task, each output must be within **32 LSB** of the independently calculated analytic result.
-- No throughput or fixed latency is promised beyond completion within 32 clocks for the golden 16-stage sequential implementation.
+- A request must complete within **32 clock cycles**. Implementations may use a different latency within this bound.
 - Pure SystemVerilog RTL; no proprietary IP or external memory required.
 
-The example implementation is *not* a formal functional proof or production-ready silicon IP. Golden verification uses an independent analytic math oracle. Published tests are open examples, not secret tests.
+The example implementation is *not* a complete formal functional proof or production-ready silicon IP. Golden numerical verification uses an independent analytic math oracle. Published tests are open examples, not secret tests.
 
 ## Evidence level
 
-Phase 0 runs independent functional simulation and technology-independent Yosys synthesis. The resulting `generic_cell_count` is **not** cell area, frequency, power, physical closure, or sign-off.
+- Verilator + analytic oracle: simulation-based numerical correctness on deterministic public vectors.
+- SymbiYosys: protocol properties (one-cycle completion pulse, no spurious completion, completion within 32 cycles, output-register stability) under the documented reset assumptions.
+- Yosys: generic synthesis only.
+
+The formal protocol proof does **not** prove trigonometric numerical equivalence, physical timing, area, power, CDC, reset recovery/removal, or silicon correctness. The resulting `generic_cell_count` is **not** cell area, frequency, power, physical closure, or sign-off.
