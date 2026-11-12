@@ -48,10 +48,8 @@ def make_sby_config(mode: str = "prove", depth: int = FORMAL_DEPTH) -> str:
 
 
 def classify_sby(returncode: int, log_text: str, mode: str = "prove") -> tuple[str, str]:
-    """A zero exit without SBY's explicit PASS marker is never accepted."""
     if returncode == 0 and "DONE (PASS, rc=0)" in log_text:
-        proof_label = {"prove": "proven", "bmc": "bounded_pass", "cover": "cover_reached"}
-        return "pass", proof_label.get(mode, "pass")
+        return "pass", {"prove": "proven", "bmc": "bounded_pass", "cover": "cover_reached"}.get(mode, "pass")
     if "DONE (FAIL, rc=2)" in log_text or "Status: failed" in log_text:
         return "fail", "failed"
     if "UNKNOWN" in log_text or "Status: unknown" in log_text:
@@ -76,6 +74,7 @@ def run_formal(candidate: Path, output: Path, mode: str = "prove",
             "completion_valid_is_one_cycle", "no_spurious_completion",
             "accepted_request_completes_within_32_cycles",
             "no_completion_timeout", "output_registers_stable_without_valid",
+            "back_to_back_request_acceptance",
         ],
         "limitations": LIMITATIONS,
     }
@@ -103,9 +102,14 @@ def run_formal(candidate: Path, output: Path, mode: str = "prove",
             stdout, stderr = proc.stdout or "", proc.stderr or ""
             (output / "sby_stdout.log").write_text(stdout, encoding="utf-8")
             (output / "sby_stderr.log").write_text(stderr, encoding="utf-8")
-            logfile = work / "sby-out" / "logfile.txt"
+            sby_dir = work / "sby-out"
+            logfile = sby_dir / "logfile.txt"
             log_text = logfile.read_text(encoding="utf-8", errors="replace") if logfile.exists() else ""
             (output / "sby_logfile.txt").write_text(log_text, encoding="utf-8")
+            # Preserve counterexample/induction traces for review; the temporary
+            # work directory is removed after this function returns.
+            if sby_dir.exists():
+                shutil.copytree(sby_dir, output / "sby-out", dirs_exist_ok=True)
             combined = "\n".join((stdout, stderr, log_text))
             status, proof_status = classify_sby(proc.returncode, combined, mode)
             report.update(

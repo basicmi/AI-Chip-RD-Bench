@@ -14,26 +14,28 @@ module cordic_formal(input logic clk);
     reg f_past_valid = 1'b0;
     reg pending = 1'b0;
     reg [5:0] age = 6'd0;
-    reg prev_valid = 1'b0;
     reg past_reset = 1'b1;
-    reg signed [15:0] prev_x = 16'sd0, prev_y = 16'sd0;
 
     always @(posedge clk) begin
         f_past_valid <= 1'b1;
         if (!f_past_valid) assume(rst);
         else assume(!rst);
 
-        if (f_past_valid && !rst) begin
-            assert(!(prev_valid && output_valid));
+        // Avoid using $past before the first post-reset sample.
+        if (f_past_valid && !rst && !$past(rst)) begin
+            // A completion pulse is exactly one cycle wide.
+            assert(!($past(output_valid) && output_valid));
+            // Completion must correspond to a previously accepted request.
             assert(!output_valid || pending);
-            // Task contract: implementation-specific latency, bounded by 32 cycles.
+            // Task contract permits implementation-specific latency, bounded by 32 cycles.
             if (pending) begin
                 if (output_valid) assert(age <= 6'd32);
                 else assert(age < 6'd32);
             end
-            if (!past_reset && !output_valid) begin
-                assert(x_out == prev_x);
-                assert(y_out == prev_y);
+            // Registered results may change only on a completion pulse.
+            if (!output_valid) begin
+                assert(x_out == $past(x_out));
+                assert(y_out == $past(y_out));
             end
         end
 
@@ -46,16 +48,13 @@ module cordic_formal(input logic clk);
                 age <= 6'd0;
             end
         end else if (output_valid) begin
-            pending <= 1'b0;
+            // The DUT is idle in the cycle output_valid is observed. It may
+            // accept the next request on this same edge if input_valid is high.
+            pending <= input_valid;
             age <= 6'd0;
         end else begin
             age <= age + 1'b1;
         end
-
-        prev_valid <= output_valid;
-        prev_x <= x_out;
-        prev_y <= y_out;
-        past_reset <= rst;
     end
 
     always @(posedge clk)
