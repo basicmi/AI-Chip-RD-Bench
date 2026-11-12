@@ -87,7 +87,7 @@ def run_formal(candidate: Path, output: Path, mode: str = "prove",
         report["tool_versions"] = {
             "yosys": tool_version("yosys", ["-V"]),
             "z3": tool_version("z3", ["--version"]),
-            "sby": tool_version("sby", ["--help"]),
+            "sby": tool_version("sby", ["--version"]),
         }
         with tempfile.TemporaryDirectory(prefix="chiprd-formal-") as temp:
             work = Path(temp)
