@@ -87,7 +87,19 @@ jobs:
           python3 -m chiprd.cli reproduce \
             --manifest artifacts/experiment/experiment_manifest.json \
             --output artifacts/reproduced
-      - name: Upload sealed experiment and reproduction evidence
+      - name: Run evolutionary candidate search under a fixed budget
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli search \
+            --proposals examples/search/cordic_candidate_pool.json \
+            --strategy evolutionary \
+            --max-experiments 2 \
+            --max-wall-clock-seconds 1200 \
+            --max-experiment-seconds 600 \
+            --output artifacts/search \
+            --seed 20261113
+      - name: Upload sealed experiment, reproduction and search evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -95,4 +107,5 @@ jobs:
           path: |
             artifacts/experiment/
             artifacts/reproduced/
+            artifacts/search/
           if-no-files-found: warn

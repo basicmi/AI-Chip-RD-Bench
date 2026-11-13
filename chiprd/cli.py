@@ -14,6 +14,7 @@ from .formal import run_formal, run_formal_negative_control
 from .harness import ROOT, run
 from .mutation import run_mutations
 from .oracle import expected, vectors
+from .search import SearchBudget, run_search
 
 
 def main() -> int:
@@ -21,11 +22,18 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce",
+        "experiment", "reproduce", "search",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
     parser.add_argument("--manifest", type=Path, default=None)
+    parser.add_argument("--proposals", type=Path, default=None)
+    parser.add_argument("--strategy", choices=["random", "greedy", "evolutionary"], default="random")
+    parser.add_argument("--max-experiments", type=int, default=4)
+    parser.add_argument("--max-wall-clock-seconds", type=float, default=1800.0)
+    parser.add_argument("--max-experiment-seconds", type=float, default=600.0)
+    parser.add_argument("--max-candidate-bytes", type=int, default=1_048_576)
+    parser.add_argument("--elite-parent-fraction", type=float, default=0.5)
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
@@ -36,6 +44,20 @@ def main() -> int:
     elif args.mode == "experiment":
         candidate = args.candidate or ROOT / "tasks/cordic/cordic_rotator.sv"
         result = run_experiment(candidate, args.output, seed=args.seed)
+    elif args.mode == "search":
+        if args.proposals is None:
+            parser.error("search requires --proposals")
+        budget = SearchBudget(
+            max_experiments=args.max_experiments,
+            max_wall_clock_seconds=args.max_wall_clock_seconds,
+            max_experiment_seconds=args.max_experiment_seconds,
+            max_candidate_bytes=args.max_candidate_bytes,
+            elite_parent_fraction=args.elite_parent_fraction,
+        )
+        result = run_search(
+            args.proposals, args.output, strategy=args.strategy,
+            seed=args.seed, budget=budget,
+        )
     else:
         default_candidate = DEFAULT_REFACTOR if args.mode == "equivalence" else ROOT / "tasks/cordic/cordic_rotator.sv"
         candidate = args.candidate or default_candidate
