@@ -183,11 +183,36 @@ def _call_model(config: dict, messages: list[dict]) -> dict:
         raise AgentError(f"Model did not return Chat Completions JSON content ({type(exc).__name__})") from None
     if not isinstance(answer, dict):
         raise AgentError("Model message must be one JSON object")
+    if "_provider_usage" in answer:
+        raise AgentError("Model output must not contain reserved provider metadata")
+    # Usage comes from provider response metadata, never from model-authored JSON.
+    raw_usage = data.get("usage")
+    if raw_usage is not None:
+        answer["_provider_usage"] = _validated_usage(raw_usage)
     return answer
 
 
+def _validated_usage(usage: object) -> dict:
+    """Provider-reported token usage; missing fields remain unknown, not zero."""
+    if not isinstance(usage, dict):
+        raise AgentError("Provider usage must be a JSON object")
+    result = {}
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = usage.get(key)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 1_000_000_000:
+            raise AgentError(f"Invalid provider usage field: {key}")
+        result[key] = value
+    if ("prompt_tokens" in result and "completion_tokens" in result
+            and "total_tokens" in result
+            and result["prompt_tokens"] + result["completion_tokens"] != result["total_tokens"]):
+        raise AgentError("Provider reported inconsistent token totals")
+    return result
+
+
 def _build_response(model: dict, payload: dict, parent: dict, original: str) -> dict:
-    if set(model) - {"action", "rtl", "rationale"}:
+    if set(model) - {"action", "rtl", "rationale", "_provider_usage"}:
         raise AgentError("Model JSON contains unknown fields")
     action, rationale = model.get("action"), model.get("rationale", "")
     if not isinstance(rationale, str) or len(rationale) > 500:
@@ -195,7 +220,10 @@ def _build_response(model: dict, payload: dict, parent: dict, original: str) -> 
     if action == "stop":
         if "rtl" in model:
             raise AgentError("Stop response must not include RTL")
-        return {"schema_version": "1.0.0", "action": "stop", "rationale": rationale}
+        result = {"schema_version": "1.0.0", "action": "stop", "rationale": rationale}
+        if model.get("_provider_usage"):
+            result["usage"] = model["_provider_usage"]
+        return result
     if action != "patch":
         raise AgentError("Model action must be 'patch' or 'stop'")
     rtl = model.get("rtl")
@@ -216,7 +244,7 @@ def _build_response(model: dict, payload: dict, parent: dict, original: str) -> 
         f"{payload.get('loop_id', 'loop')}:{payload['iteration']}:{parent['candidate_sha256']}".encode()
     )[:12]
     patch_id = f"llm_{payload['iteration']:03d}_{identifier}"
-    return {
+    result = {
         "schema_version": "1.0.0", "action": "patch", "rationale": rationale,
         "proposal": {
             "schema_version": "1.0.0", "task_id": TASK_ID, "patch_id": patch_id,
@@ -228,6 +256,9 @@ def _build_response(model: dict, payload: dict, parent: dict, original: str) -> 
             "description": rationale, "predicted_improvement": 0.0,
         },
     }
+    if model.get("_provider_usage"):
+        result["usage"] = model["_provider_usage"]
+    return result
 
 
 def main() -> int:
@@ -237,8 +268,10 @@ def main() -> int:
             raise AgentError("Controller request exceeds size limit")
         payload = json.loads(raw)
         parent, _, original = _validated_input(payload)
-        model = _call_model(_config(), _messages(payload, original))
+        config = _config()
+        model = _call_model(config, _messages(payload, original))
         result = _build_response(model, payload, parent, original)
+        result["model_id"] = config["model"]
         sys.stdout.write(json.dumps(result, sort_keys=True, ensure_ascii=False) + "\n")
         return 0
     except (AgentError, UnicodeDecodeError, json.JSONDecodeError, UnicodeEncodeError) as exc:

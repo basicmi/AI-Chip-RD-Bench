@@ -224,6 +224,24 @@ The model returns exactly one JSON object: `{"action":"stop","rationale":"..."}`
 
 **Data and security boundaries:** Running this adapter may send the task spec, RTL and feedback to your configured provider, with possible API charges. Use only code and data you may share. The adapter does not log raw model responses or API keys, but the controller retains candidate RTL, patches, and feedback. This is an opt-in model integration, **not a sandbox or proof of autonomous optimization**. CI tests mock HTTP; CI never calls a live LLM or requires credentials.
 
+### Agent benchmark scorecards and token telemetry (Phase 9)
+
+Run `agent-loop` with the model-backed adapter, then generate a reproducible JSON scorecard from its archived report:
+
+```bash
+python3 -m chiprd.benchmark_report \
+  artifacts/agent-loops/model-run/agent_loop_report.json \
+  --output artifacts/agent-loops/model-run/scorecard.json
+```
+
+For multiple runs, provide distinct report paths; the resulting comparison retains each run and warns that **equal baseline cell counts do not prove comparable toolchains**. Review source experiment manifests for toolchain, seed and evaluator fingerprints before drawing model comparisons.
+
+The scorecard distinguishes **Agent calls, submitted patches, successfully applied patches, evaluated candidates, fully feasible candidates, and strictly improved candidates**. It reports each of the six public gate pass rates, the baseline and best generic Yosys cell counts, and detailed failure categories.
+
+The OpenAI-compatible adapter captures `prompt_tokens`, `completion_tokens`, and `total_tokens` **only if supplied by the provider's top-level usage field**. These are forwarded as optional, validated metadata through the Agent-loop protocol and archived per iteration. Unreported token usage remains `null` / unknown, never zero. Provider counters are not independently verified. The adapter retains an explicit maximum completion-token cap per model call through `CHIPRD_LLM_MAX_TOKENS`; the full token and dollar cost of a run may not be knowable for providers that omit usage.
+
+This benchmark does **not** independently establish production physical PPA or fully correct functionality. A scorecard alone is not a proof of real autonomous improvement. GitHub CI uses the deterministic fixture and never sends RTL to a provider; real-model comparison requires explicit configuration and cost/privacy approval.
+
 ### Evidence boundaries
 
 - Generic cell count is not standard-cell area, timing or power.

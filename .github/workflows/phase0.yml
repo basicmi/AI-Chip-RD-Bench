@@ -111,6 +111,11 @@ jobs:
             --max-experiment-seconds 600 \
             --output artifacts/agent-loops/ci \
             --loop-id ci-agent-loop
+      - name: Generate deterministic Agent loop benchmark scorecard
+        run: |
+          python3 -m chiprd.benchmark_report \
+            artifacts/agent-loops/ci/agent_loop_report.json \
+            --output artifacts/agent-loops/ci/scorecard.json
       - name: Upload sealed experiment, reproduction, search and patch evidence
         if: always()
         uses: actions/upload-artifact@v4
