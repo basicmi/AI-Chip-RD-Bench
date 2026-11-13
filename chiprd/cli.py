@@ -26,6 +26,8 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
+    default_candidate = DEFAULT_REFACTOR if args.mode == "equivalence" else ROOT / "tasks/cordic/cordic_rotator.sv"
+    candidate = args.candidate or default_candidate
     if args.mode == "smoke":
         checks = [(angle, expected(angle)) for angle in vectors(args.seed)]
         print(json.dumps({"status": "pass", "oracle_vectors": len(checks),
