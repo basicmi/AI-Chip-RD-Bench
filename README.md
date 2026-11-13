@@ -14,31 +14,31 @@ Install Verilator, Yosys, Z3, SymbiYosys and a compatible EQY toolchain. For a r
 
 Run the individual checks:
 
-\`\`\`bash
+```bash
 python3 -m unittest discover -s tests -v
 python3 -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
 python3 -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
 python3 -m chiprd.cli formal --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal
 python3 -m chiprd.cli formal-negative-control --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal-negative-control
 python3 -m chiprd.cli equivalence-selftest --output artifacts/equivalence
-\`\`\`
+```
 
 ### Sealed end-to-end experiment
 
 The experiment command seals the candidate RTL once, then runs all public checks against that immutable snapshot:
 
-\`\`\`bash
-python3 -m chiprd.cli experiment \\
-  --candidate tasks/cordic/cordic_rotator.sv \\
+```bash
+python3 -m chiprd.cli experiment \
+  --candidate tasks/cordic/cordic_rotator.sv \
   --output artifacts/experiment
-\`\`\`
+```
 
 It produces:
 
-- \`sealed/candidate.sv\`: read-only candidate snapshot.
-- \`experiment_manifest.json\`: candidate SHA-256, evaluator-input hashes, tool versions, Python/platform, seed, formal depth, equivalence semantics and command plan.
-- \`experiment_ledger.jsonl\`: append-only lifecycle events for sealing, check start/completion and finalization. Each completed check records the report path and SHA-256.
-- \`experiment_report.json\`: aggregate status, per-check report pointers and normalized result signature.
+- `sealed/candidate.sv`: read-only candidate snapshot.
+- `experiment_manifest.json`: candidate SHA-256, evaluator-input hashes, tool versions, Python/platform, seed, formal depth, equivalence semantics and command plan.
+- `experiment_ledger.jsonl`: append-only, hash-chained lifecycle events for sealing, check start/completion and finalization. Each event commits to the previous event; completed checks record the report path and SHA-256.
+- `experiment_report.json`: aggregate status, per-check report pointers and normalized result signature.
 - Per-check folders containing the original detailed logs, reports, partitions and counterexample traces.
 
 The unified experiment runs functional verification plus generic synthesis, simulation mutation, protocol formal proof, formal negative control, candidate-to-reference EQY, and the EQY positive/negative self-test. All checks use the same sealed candidate hash. A missing tool, an inconclusive proof or a missing report fails closed; it is never silently counted as a pass.
@@ -47,18 +47,19 @@ The unified experiment runs functional verification plus generic synthesis, simu
 
 Use the original manifest as the reproduction contract:
 
-\`\`\`bash
-python3 -m chiprd.cli reproduce \\
-  --manifest artifacts/experiment/experiment_manifest.json \\
+```bash
+python3 -m chiprd.cli reproduce \
+  --manifest artifacts/experiment/experiment_manifest.json \
   --output artifacts/reproduced
-\`\`\`
+```
 
 Before rerunning, the reproducer verifies:
 1. The sealed candidate exists and its SHA-256 matches.
 2. Every evaluator input (RTL reference, testbench, oracle, formal harness, runners, task specification and package metadata) matches the original manifest.
-3. The required tool versions and Python version match the original toolchain record.
+3. The required tool versions, Python version and platform match the original toolchain record.
+4. The hash-chained ledger is intact, its first event binds the original manifest hash, and its final event binds the experiment report and normalized result signature.
 
-If any precondition differs, reproduction is blocked and the mismatch is recorded; it does not quietly substitute the current evaluator. If preconditions match, the full experiment is rerun and normalized result signatures are compared. Timestamps, temporary directories and log paths are deliberately excluded from the result signature; functional outcomes, synthesis statistics, mutation outcomes and formal/equivalence proof statuses are included.
+If any precondition differs, reproduction is blocked and the mismatch is recorded; it does not quietly substitute the current evaluator. The ledger detects accidental edits, deletion, reordering or truncation of recorded events; it is tamper-evident, not a cryptographic signature from a trusted external authority. If preconditions match, the full experiment is rerun and normalized result signatures are compared. Timestamps, temporary directories and log paths are deliberately excluded from the result signature; functional outcomes, synthesis statistics, mutation outcomes and formal/equivalence proof statuses are included.
 
 A reproduction PASS means the normalized experiment results match under the same recorded evaluator inputs and tool versions. It does not mean the experiment is a secret test, an adversarial sandbox, a physical PPA sign-off or a silicon proof.
 
@@ -74,7 +75,7 @@ The SymbiYosys task checks:
 - Every accepted request completes within the task's **32-cycle maximum latency**; the task does not require a specific implementation latency.
 - Output registers remain stable when no completion is valid.
 
-The harness assumes synchronous reset on the first formal clock and deasserted reset thereafter, preventing reset from masking an outstanding-request timeout. The runner uses \`smtbmc z3\` in SBY \`prove\` mode. It reports \`proof_status: proven\` only for SBY's explicit PASS marker. Unknown results and tool errors are not passes. A separate negative-control run suppresses the completion-valid pulse and requires the formal assertions to fail.
+The harness assumes synchronous reset on the first formal clock and deasserted reset thereafter, preventing reset from masking an outstanding-request timeout. The runner uses `smtbmc z3` in SBY `prove` mode. It reports `proof_status: proven` only for SBY's explicit PASS marker. Unknown results and tool errors are not passes. A separate negative-control run suppresses the completion-valid pulse and requires the formal assertions to fail.
 
 **Formal scope is limited:** this does not prove sine/cosine numerical accuracy, complete functional equivalence, CDC, reset recovery/removal, physical timing, area, power or silicon correctness. Numerical accuracy remains covered by the independent Verilator + analytic oracle.
 
