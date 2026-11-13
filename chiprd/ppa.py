@@ -77,12 +77,13 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
             "check -assert\n"
             "stat -liberty cells.lib\n"
             "write_json mapped.json\n"
+            "write_verilog -noattr mapped.v\n"
         )
         (work / "map.ys").write_text(script, encoding="utf-8")
         proc = _run([yosys, "-Q", "-T", "-s", "map.ys"], work)
         log = proc.stdout + "\n[stderr]\n" + proc.stderr
         (output / "yosys_mapping.log").write_text(log, encoding="utf-8")
-        if proc.returncode != 0 or not (work / "mapped.json").is_file():
+        if proc.returncode != 0 or not (work / "mapped.json").is_file() or not (work / "mapped.v").is_file():
             raise RuntimeError(f"Yosys Liberty mapping failed (exit {proc.returncode})")
         design = json.loads((work / "mapped.json").read_text(encoding="utf-8"))
         module = design.get("modules", {}).get(TOP)
@@ -105,6 +106,8 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
             raise RuntimeError(
                 "Technology mapping left non-Liberty cells: " + ", ".join(sorted(set(unmapped)))
             )
+        mapped_netlist = output / "mapped.v"
+        shutil.copyfile(work / "mapped.v", mapped_netlist)
         area = _area_from_log(log)
         version = _run([yosys, "-V"], work)
         if version.returncode != 0:
@@ -114,6 +117,7 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
             "source_sha256": _sha(candidate),
             "mapped_cell_count": sum(histogram.values()),
             "mapped_cell_area": area,
+            "mapped_netlist_sha256": _sha(mapped_netlist),
             "cell_type_histogram": dict(sorted(histogram.items())),
             "yosys_version": (version.stdout.strip() or version.stderr.strip()).splitlines()[0],
         }

@@ -173,11 +173,39 @@ jobs:
             --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
             --platform-label nangate45-reference \
             --output artifacts/ppa/nangate45
+      - name: Download pinned Nangate45 technology and cell LEFs
+        shell: bash
+        run: |
+          for entry in \
+            "NangateOpenCellLibrary.tech.lef db9ccc17e72a9f574264928dce8c89eda6c79f98" \
+            "NangateOpenCellLibrary.macro.lef afba6cdd9215a5ac3bd3b5228cbdee58023177f0"; do
+            set -- $entry
+            curl -L --fail --retry 3 \
+              "https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD-flow-scripts/23341145f0fc92a522de26d5244a4a0013818f97/flow/platforms/nangate45/lef/$1" \
+              -o "$RUNNER_TEMP/$1"
+            test "$(git hash-object "$RUNNER_TEMP/$1")" = "$2"
+          done
+      - name: Compare pre-layout SDC-constrained timing
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          openroad -version
+          python3 -m chiprd.cli timing \
+            --candidate tasks/cordic/cordic_rotator_refactor.sv \
+            --reference tasks/cordic/cordic_rotator.sv \
+            --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+            --tech-lef "$RUNNER_TEMP/NangateOpenCellLibrary.tech.lef" \
+            --cells-lef "$RUNNER_TEMP/NangateOpenCellLibrary.macro.lef" \
+            --clock-period-ns 10 \
+            --io-delay-ns 0.5 \
+            --output artifacts/timing/nangate45
       - name: Upload Liberty mapping evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: liberty-mapping-evidence
-          path: artifacts/ppa/
+          path: |
+            artifacts/ppa/
+            artifacts/timing/
           if-no-files-found: warn
 

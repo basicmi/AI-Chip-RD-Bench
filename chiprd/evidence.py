@@ -36,6 +36,7 @@ EVALUATOR_INPUTS = (
     "chiprd/agent_loop.py",
     "chiprd/audit.py",
     "chiprd/ppa.py",
+    "chiprd/timing.py",
     "chiprd/patches.py",
     "chiprd/evidence.py",
     "chiprd/harness.py",

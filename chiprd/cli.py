@@ -19,6 +19,7 @@ from .mutation import run_mutations
 from .oracle import expected, vectors
 from .patches import apply_patch_proposal
 from .ppa import compare_area
+from .timing import compare_timing
 from .search import SearchBudget, run_search
 
 
@@ -27,7 +28,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit", "ppa",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit", "ppa", "timing",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -36,6 +37,10 @@ def main() -> int:
     parser.add_argument("--audit-seed", type=int, default=None)
     parser.add_argument("--audit-vectors", type=int, default=128)
     parser.add_argument("--liberty", type=Path, default=None)
+    parser.add_argument("--tech-lef", type=Path, default=None)
+    parser.add_argument("--cells-lef", type=Path, default=None)
+    parser.add_argument("--clock-period-ns", type=float, default=10.0)
+    parser.add_argument("--io-delay-ns", type=float, default=0.5)
     parser.add_argument("--platform-label", type=str, default="user-supplied-liberty")
     parser.add_argument("--proposals", type=Path, default=None)
     parser.add_argument("--patch-proposal", type=Path, default=None)
@@ -54,7 +59,16 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
-    if args.mode == "ppa":
+    if args.mode == "timing":
+        if args.candidate is None or args.liberty is None or args.tech_lef is None or args.cells_lef is None:
+            parser.error("timing requires --candidate, --liberty, --tech-lef and --cells-lef")
+        result = compare_timing(
+            args.candidate, args.reference, args.liberty,
+            args.tech_lef, args.cells_lef, args.output,
+            clock_period_ns=args.clock_period_ns,
+            io_delay_ns=args.io_delay_ns,
+        )
+    elif args.mode == "ppa":
         if args.candidate is None or args.liberty is None:
             parser.error("ppa requires --candidate and --liberty")
         result = compare_area(
