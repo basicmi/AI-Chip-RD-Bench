@@ -6,7 +6,7 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, sealed experiment manifests, a JSONL experiment ledger and reproducibility checks.
 
-**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and autonomous RTL generation remain future milestones. The benchmark accepts externally generated, single-file unified diffs against the fixed CORDIC RTL, applies them to an isolated copy and records patch provenance; it still does not generate RTL itself. A budgeted proposal scheduler evaluates supplied candidates.
+**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and autonomous RTL generation remain future milestones. The benchmark accepts externally generated, single-file unified diffs against the fixed CORDIC RTL, applies them to an isolated copy and records patch provenance. Its bounded closed-loop controller can invoke an external Agent adapter and feed experiment results back, but it does not bundle an LLM or claim autonomous model-driven optimization by itself. A budgeted proposal scheduler evaluates supplied candidates.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
@@ -143,39 +143,62 @@ The campaign writes:
 - `search_report.json`: budget consumption, candidate lineage, gate outcomes, feasibility, fitness, baseline comparison, best candidate and skipped-proposal reasons.
 - `experiments/<candidate_id>/`: each candidate's sealed manifest, hash-chained ledger, full evaluator reports and runner logs.
 
-**Important API boundary:** this PR implements the candidate submission schema, validation, scheduling, budget enforcement and evidence aggregation. It does not implement an LLM Agent, RTL patch generation, mutation/recombination operators or a closed-loop proposer. Those can be connected through the proposal-pool interface in a later phase.
+**Important API boundary:** the proposal-pool scheduler evaluates externally generated candidates; it does not generate RTL. The separate Agent closed-loop controller can invoke an external proposer through a strict JSON command protocol, but no model/provider is bundled and no mutation/recombination operator is claimed.
 
 ### Agent RTL patch intake
 
-An external Agent can now submit a versioned patch proposal rather than writing directly into the golden RTL. The first adapter is intentionally narrow: one existing file, \`tasks/cordic/cordic_rotator.sv\`, with a unified diff. The proposal must identify its parent candidate by SHA-256, so a patch created against stale RTL is rejected.
+An external Agent can submit a versioned patch proposal rather than writing directly into the golden RTL. The first adapter is intentionally narrow: one existing file, `tasks/cordic/cordic_rotator.sv`, with a unified diff. The proposal must identify its parent candidate by SHA-256, so a patch created against stale RTL is rejected.
 
 Apply the checked-in behavior-preserving signed-delta refactor:
 
-\`\`\`bash
+```bash
 sha256sum tasks/cordic/cordic_rotator.sv
 python3 -m chiprd.cli apply-patch \
   --patch-proposal examples/patches/signed_delta_refactor.json \
   --output artifacts/agent-patches
-\`\`\`
+```
 
-The command validates the proposal schema, parent hash, safe patch identifier, target path, patch size and unified-diff structure. It then runs \`git apply --check\` and applies the patch in a temporary workspace containing a copy of the parent RTL. The golden source is never modified. Multi-file, binary, rename, delete, new-file and file-mode patches are rejected. Output must remain inside the repository and an existing patch result is never overwritten.
+The command validates the proposal schema, parent hash, safe patch identifier, target path, patch size and unified-diff structure. It then runs `git apply --check` and applies the patch in a temporary workspace containing a copy of the parent RTL. The golden source is never modified. Multi-file, binary, rename, delete, new-file and file-mode patches are rejected. Output must remain inside the repository and an existing patch result is never overwritten.
 
 Subsequent generations may use a previous result as their parent by setting `parent_candidate_path` to `artifacts/agent-patches/<previous-patch-id>/candidate.sv`, carrying forward its candidate SHA-256, and incrementing `generation`. This makes patch lineage incremental without modifying any earlier candidate.
 
 The result directory contains:
-- \`candidate.sv\`: patched RTL, suitable for the sealed experiment runner and search proposal pool.
-- \`patch.diff\`: exact submitted unified diff.
-- \`patch_manifest.json\`: parent, patch and candidate hashes; patcher and Git versions; and a ready-to-copy \`search_proposal\` entry containing candidate ID, path, parent ID, generation and predicted improvement.
+- `candidate.sv`: patched RTL, suitable for the sealed experiment runner and search proposal pool.
+- `patch.diff`: exact submitted unified diff.
+- `patch_manifest.json`: parent, patch and candidate hashes; patcher and Git versions; and a ready-to-copy `search_proposal` entry containing candidate ID, path, parent ID, generation and predicted improvement.
 
-Run the full evidence-gated experiment on the patched candidate:
+A successful patch application means only that the diff passed intake checks and was applied to the expected parent. It is **not** an RTL correctness or PPA result; the candidate must still pass the normal functional, mutation, formal and equivalence gates. The patch API does not invoke an LLM or provide an adversarial security sandbox.
 
-\`\`\`bash
-python3 -m chiprd.cli experiment \
-  --candidate artifacts/agent-patches/signed_delta_refactor/candidate.sv \
-  --output artifacts/agent-patch-experiment
-\`\`\`
+### Agent closed-loop controller
 
-A successful patch application means only that the diff passed intake checks and was applied to the expected parent. It is **not** an RTL correctness or PPA result; the candidate must still pass the normal functional, mutation, formal and equivalence gates. The patch API does not invoke an LLM, generate patches, or provide an adversarial security sandbox. The checked-in example is an external, behavior-preserving patch used to test the intake-to-evaluation path.
+The `agent-loop` command connects an external Agent adapter to the patch intake and sealed evaluator. It first evaluates the golden baseline, then repeats this cycle within explicit budgets:
+
+1. Send the Agent the current parent candidate ID/path/hash, best feasible candidate, previous experiment summary and failed-gate statuses.
+2. Receive one JSON response: either a versioned patch proposal or an explicit stop action.
+3. Verify that the proposal's parent ID, path, SHA-256 and generation match the current loop state.
+4. Apply the patch through the existing isolated patch intake.
+5. Run all six public experiment gates against the new sealed candidate.
+6. Feed the result signature, gate outcomes and synthesis proxy back to the Agent on the next iteration.
+
+The Agent is a separate executable. The controller does not bundle or call a particular LLM provider. Use an adapter that reads one JSON object from stdin and writes exactly one JSON object to stdout. The command is passed as a JSON argv array, never through a shell:
+
+```bash
+python3 -m chiprd.cli agent-loop \
+  --agent-command-json '["python3","examples/agents/mock_agent.py"]' \
+  --max-iterations 2 \
+  --max-wall-clock-seconds 3600 \
+  --max-agent-seconds 180 \
+  --max-experiment-seconds 600 \
+  --max-candidate-bytes 1048576 \
+  --output artifacts/agent-loops/demo \
+  --loop-id demo
+```
+
+The checked-in `mock_agent.py` is a deterministic CI fixture, not an LLM and not an optimizer. It proposes the behavior-preserving signed-delta patch once, then stops after receiving the experiment feedback. Replace it with a model-backed adapter to run genuine Agent-driven experiments. Pass provider credentials through environment variables; they are not copied into the loop manifest.
+
+Each loop writes a manifest, a hash-chained event ledger, every Agent request/response and stdout/stderr, patch manifests, and sealed experiment directories. The controller enforces iteration, wall-clock, Agent-call, experiment and candidate-size budgets. Agent timeouts terminate the process group. A malformed response or protocol violation fails closed; an invalid patch is recorded and returned as feedback while the current parent remains unchanged. Failed experiments can be used as the next iteration's parent so the Agent can attempt a repair; only candidates passing all six gates are eligible to become the best candidate.
+
+The current objective minimizes Yosys `generic_cell_count` subject to all six public gates passing. This is a generic synthesis proxy, **not** physical area, timing, power or PPA. The controller invokes the supplied Agent command on the local machine; it is not a hostile-code sandbox. Run untrusted adapters and HDL in an isolated environment.
 
 ### Evidence boundaries
 
