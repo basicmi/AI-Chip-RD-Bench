@@ -116,11 +116,53 @@ def collect_toolchain() -> dict:
 
 
 def _append_ledger(path: Path, event: str, **fields: object) -> None:
-    record = {"timestamp_utc": _utc_now(), "event": event, **fields}
+    previous_hash = "0" * 64
+    if path.is_file():
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if lines:
+            previous_hash = json.loads(lines[-1]).get("event_sha256", previous_hash)
+    record = {
+        "timestamp_utc": _utc_now(),
+        "event": event,
+        "previous_event_sha256": previous_hash,
+        **fields,
+    }
+    record["event_sha256"] = _canonical_hash(record)
     with path.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, sort_keys=True) + "\n")
         stream.flush()
         os.fsync(stream.fileno())
+
+
+def verify_ledger(path: Path) -> dict:
+    """Verify the append-only event hash chain; return the parsed events."""
+    if not path.is_file():
+        return {"valid": False, "events": [], "errors": ["ledger_missing"]}
+    expected_previous = "0" * 64
+    events = []
+    errors = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            errors.append(f"invalid_json_line:{line_number}")
+            continue
+        stored_hash = record.pop("event_sha256", None)
+        if record.get("previous_event_sha256") != expected_previous:
+            errors.append(f"broken_previous_hash:{line_number}")
+        calculated_hash = _canonical_hash(record)
+        if stored_hash != calculated_hash:
+            errors.append(f"event_hash_mismatch:{line_number}")
+        if isinstance(stored_hash, str):
+            expected_previous = stored_hash
+        record["event_sha256"] = stored_hash
+        events.append(record)
+    return {
+        "valid": not errors and bool(events),
+        "events": events,
+        "errors": errors,
+        "head_sha256": expected_previous,
+    }
 
 
 def _safe_relative_file(base: Path, relative: str) -> Path:
@@ -265,12 +307,12 @@ def run_experiment(candidate: Path, output: Path, seed: int = 20261112) -> dict:
         },
         "source_control": {},
         "commands": [
-            ["python", "-m", "chiprd.cli", "all", "--candidate", "sealed/candidate.sv"],
-            ["python", "-m", "chiprd.cli", "mutation", "--candidate", "sealed/candidate.sv"],
-            ["python", "-m", "chiprd.cli", "formal", "--candidate", "sealed/candidate.sv"],
-            ["python", "-m", "chiprd.cli", "formal-negative-control", "--candidate", "sealed/candidate.sv"],
-            ["python", "-m", "chiprd.cli", "equivalence", "--reference", "tasks/cordic/cordic_rotator.sv", "--candidate", "sealed/candidate.sv"],
-            ["python", "-m", "chiprd.cli", "equivalence-selftest"],
+            [sys.executable, "-m", "chiprd.cli", "all", "--candidate", "sealed/candidate.sv", "--output", "functional-synthesis", "--seed", str(seed)],
+            [sys.executable, "-m", "chiprd.cli", "mutation", "--candidate", "sealed/candidate.sv", "--output", "mutation", "--seed", str(seed)],
+            [sys.executable, "-m", "chiprd.cli", "formal", "--candidate", "sealed/candidate.sv", "--output", "formal"],
+            [sys.executable, "-m", "chiprd.cli", "formal-negative-control", "--candidate", "sealed/candidate.sv", "--output", "formal-negative-control"],
+            [sys.executable, "-m", "chiprd.cli", "equivalence", "--reference", "tasks/cordic/cordic_rotator.sv", "--candidate", "sealed/candidate.sv", "--output", "equivalence-candidate"],
+            [sys.executable, "-m", "chiprd.cli", "equivalence-selftest", "--output", "equivalence-selftest"],
         ],
     }
     try:
@@ -311,9 +353,16 @@ def run_experiment(candidate: Path, output: Path, seed: int = 20261112) -> dict:
             check=name, candidate_sha256=candidate_hash,
         )
         try:
+            if sha256_file(snapshot) != candidate_hash:
+                raise RuntimeError("Sealed candidate hash changed before check execution")
             result = function()
             if not isinstance(result, dict):
                 result = {"status": "error", "error": "Check returned a non-object result"}
+            if sha256_file(snapshot) != candidate_hash:
+                result = {
+                    "status": "error",
+                    "error": "Sealed candidate integrity check failed during check execution",
+                }
         except Exception as exc:
             result = {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
         check_results[name] = result
@@ -387,6 +436,7 @@ def run_experiment(candidate: Path, output: Path, seed: int = 20261112) -> dict:
         "manifest_path": str(manifest_path),
         "report_path": str(report_path),
         "ledger_path": str(ledger_path),
+        "candidate_snapshot_intact": sha256_file(snapshot) == candidate_hash,
     }
 
 
@@ -427,13 +477,37 @@ def reproduce_experiment(manifest_path: Path, output: Path) -> dict:
     else:
         input_error = None
     expected_inputs = manifest.get("evaluator", {}).get("files", {})
-    evaluator_inputs_match = current_inputs == expected_inputs
+    expected_fingerprint = manifest.get("evaluator", {}).get("fingerprint_sha256")
+    evaluator_inputs_match = (
+        current_inputs == expected_inputs
+        and _canonical_hash(expected_inputs) == expected_fingerprint
+    )
     current_toolchain = collect_toolchain()
-    expected_versions = manifest.get("toolchain", {}).get("versions", {})
+    expected_toolchain = manifest.get("toolchain", {})
+    expected_versions = expected_toolchain.get("versions", {})
     tool_versions_match = (
         current_toolchain.get("status") == "pass"
         and current_toolchain.get("versions") == expected_versions
-        and current_toolchain.get("python") == manifest.get("toolchain", {}).get("python")
+        and current_toolchain.get("python") == expected_toolchain.get("python")
+        and current_toolchain.get("platform") == expected_toolchain.get("platform")
+    )
+    original_manifest_hash = sha256_file(manifest_path)
+    ledger_path = experiment_dir / LEDGER_NAME
+    ledger_check = verify_ledger(ledger_path)
+    ledger_matches_manifest = (
+        ledger_check.get("valid")
+        and bool(ledger_check.get("events"))
+        and ledger_check["events"][0].get("event") == "experiment_started"
+        and ledger_check["events"][0].get("manifest_sha256") == original_manifest_hash
+    )
+    original_report_path = experiment_dir / REPORT_NAME
+    report_matches_ledger = (
+        original_report_path.is_file()
+        and bool(ledger_check.get("events"))
+        and ledger_check["events"][-1].get("event") == "experiment_completed"
+        and ledger_check["events"][-1].get("report_sha256") == sha256_file(original_report_path)
+        and ledger_check["events"][-1].get("result_signature_sha256")
+            == _canonical_hash(json.loads(original_report_path.read_text(encoding="utf-8")).get("result_signature", {}))
     )
 
     mismatches = []
@@ -445,6 +519,10 @@ def reproduce_experiment(manifest_path: Path, output: Path) -> dict:
         mismatches.append(f"evaluator_input_error:{input_error}")
     if not tool_versions_match:
         mismatches.append("toolchain_version_mismatch_or_missing")
+    if not ledger_matches_manifest:
+        mismatches.append("experiment_ledger_invalid_or_manifest_mismatch")
+    if not report_matches_ledger:
+        mismatches.append("experiment_report_invalid_or_ledger_mismatch")
 
     if mismatches:
         report = {
@@ -453,25 +531,17 @@ def reproduce_experiment(manifest_path: Path, output: Path) -> dict:
             "candidate_matches": candidate_matches,
             "evaluator_inputs_match": evaluator_inputs_match,
             "tool_versions_match": tool_versions_match,
+            "ledger_valid": ledger_check.get("valid", False),
+            "ledger_matches_manifest": ledger_matches_manifest,
+            "report_matches_ledger": report_matches_ledger,
             "mismatches": mismatches,
-            "original_manifest_sha256": sha256_file(manifest_path),
+            "original_manifest_sha256": original_manifest_hash,
         }
         reproduction_path.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         return report
 
-    original_report_path = experiment_dir / REPORT_NAME
-    if not original_report_path.is_file():
-        report = {
-            "status": "blocked",
-            "reason": "original_experiment_report_missing",
-            "original_experiment_id": manifest.get("experiment_id"),
-        }
-        reproduction_path.write_text(
-            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        return report
     original_report = json.loads(original_report_path.read_text(encoding="utf-8"))
     seed = int(manifest.get("parameters", {}).get("seed", 20261112))
     reproduced = run_experiment(candidate, output, seed=seed)
@@ -486,6 +556,9 @@ def reproduce_experiment(manifest_path: Path, output: Path) -> dict:
         "candidate_matches": candidate_matches,
         "evaluator_inputs_match": evaluator_inputs_match,
         "tool_versions_match": tool_versions_match,
+        "ledger_valid": ledger_check.get("valid", False),
+        "ledger_matches_manifest": ledger_matches_manifest,
+        "report_matches_ledger": report_matches_ledger,
         "result_signatures_match": signatures_match,
         "original_experiment_status": original_report.get("status"),
         "reproduced_experiment_status": reproduced.get("status"),
