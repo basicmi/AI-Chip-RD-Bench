@@ -68,6 +68,7 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
         shutil.copyfile(liberty, work / "cells.lib")
         script = (
             "read_verilog -sv candidate.sv\n"
+            "read_liberty -lib cells.lib\n"
             f"hierarchy -check -top {TOP}\n"
             f"synth -top {TOP} -noabc\n"
             "dfflibmap -liberty cells.lib\n"
@@ -211,6 +212,7 @@ def compare_area(
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
         report["status"] = "error"
         report["error_type"] = type(exc).__name__
+        report["error"] = str(exc)
     (output / "ppa_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

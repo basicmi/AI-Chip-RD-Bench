@@ -70,6 +70,7 @@ class LibertyMappingTests(unittest.TestCase):
             report = ppa.compare_area(self.candidate, self.liberty, self.output)
         self.assertEqual(report["status"], "error")
         self.assertEqual(report["error_type"], "RuntimeError")
+        self.assertEqual(report["error"], "mapping failed")
         saved = json.loads((self.output / "ppa_report.json").read_text())
         self.assertEqual(saved["status"], "error")
 
