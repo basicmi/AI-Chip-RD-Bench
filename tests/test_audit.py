@@ -34,6 +34,23 @@ class AuditTests(unittest.TestCase):
         self.temp.cleanup()
 
     def loop_report(self, *, feasible=True, digest=None, status="pass", path=None):
+        exp_dir = self.root / "artifacts/audit-source-experiment"
+        (exp_dir / "sealed").mkdir(parents=True, exist_ok=True)
+        (exp_dir / "sealed/candidate.sv").write_bytes(self.source.read_bytes())
+        (exp_dir / "experiment_manifest.json").write_text(json.dumps({
+            "candidate": {"sha256": digest or self.digest},
+        }), encoding="utf-8")
+        (exp_dir / "experiment_report.json").write_text(json.dumps({
+            "candidate_sha256": digest or self.digest,
+            "candidate_snapshot_intact": True,
+            "status": "pass",
+            "checks": {
+                name: {"status": "pass"} for name in (
+                    "functional_synthesis", "mutation", "formal",
+                    "formal_negative_control", "equivalence", "equivalence_selftest",
+                )
+            },
+        }), encoding="utf-8")
         data = {
             "schema_version": "1.0.0",
             "report_type": "chiprd_agent_closed_loop",
@@ -49,6 +66,7 @@ class AuditTests(unittest.TestCase):
                  "status": status,
                  "feasible": feasible,
                  "generic_cell_count": 100,
+                 "experiment_directory": "artifacts/audit-source-experiment",
                  "gate_statuses": {"functional_synthesis": "pass"}},
             ],
         }
@@ -91,7 +109,7 @@ class AuditTests(unittest.TestCase):
 
     def test_rejects_stale_selected_rtl(self):
         rp = self.loop_report(digest="0" * 64)
-        with self.assertRaisesRegex(ValueError, "hash no longer matches"):
+        with self.assertRaisesRegex(ValueError, "sealed evidence"):
             audit.audit_candidate(None, self.output, audit_seed=91919, loop_report=rp)
 
     def test_rejects_unverified_selection(self):
@@ -102,6 +120,15 @@ class AuditTests(unittest.TestCase):
     def test_rejects_forged_paths(self):
         rp = self.loop_report(path="../outside.sv")
         with self.assertRaises((ValueError, FileNotFoundError)):
+            audit.audit_candidate(None, self.output, audit_seed=91919, loop_report=rp)
+
+    def test_rejects_tampered_sealed_evaluator_report(self):
+        rp = self.loop_report()
+        report_path = self.root / "artifacts/audit-source-experiment/experiment_report.json"
+        evidence = json.loads(report_path.read_text())
+        evidence["checks"]["equivalence"]["status"] = "fail"
+        report_path.write_text(json.dumps(evidence))
+        with self.assertRaisesRegex(ValueError, "sealed evidence"):
             audit.audit_candidate(None, self.output, audit_seed=91919, loop_report=rp)
 
     def test_requires_independent_seed_and_bounded_count(self):

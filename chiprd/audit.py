@@ -75,6 +75,46 @@ def _load_selected(loop_report: Path, root: Path) -> dict:
     ]
     if len(matches) != 1:
         raise ValueError("Selected candidate is not uniquely backed by a passing feasible experiment")
+    # An Agent-loop summary can be edited; independently cross-check the actual
+    # sealed experiment's manifest, candidate snapshot and evaluator report.
+    experiment = matches[0]
+    experiment_dir_name = experiment.get("experiment_directory")
+    if not isinstance(experiment_dir_name, str) or not experiment_dir_name.startswith("artifacts/"):
+        raise ValueError("Selected experiment has no repository-relative evidence directory")
+    experiment_dir = (root / experiment_dir_name).resolve(strict=True)
+    try:
+        experiment_dir.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Experiment evidence directory escapes repository root") from exc
+    manifest_file = _safe_repo_file(root, experiment_dir / "experiment_manifest.json")
+    result_file = _safe_repo_file(root, experiment_dir / "experiment_report.json")
+    sealed_file = _safe_repo_file(root, experiment_dir / "sealed" / "candidate.sv")
+    try:
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        result = json.loads(result_file.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Selected experiment evidence is not valid JSON") from exc
+    required_gates = {
+        "functional_synthesis", "mutation", "formal",
+        "formal_negative_control", "equivalence", "equivalence_selftest",
+    }
+    checks = result.get("checks", {}) if isinstance(result, dict) else {}
+    manifest_candidate = manifest.get("candidate") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or not isinstance(result, dict)
+        or not isinstance(manifest_candidate, dict)
+        or manifest_candidate.get("sha256") != digest
+        or result.get("candidate_sha256") != digest
+        or result.get("status") != "pass"
+        or result.get("candidate_snapshot_intact") is not True
+        or not isinstance(checks, dict)
+        or not required_gates.issubset(checks)
+        or any(not isinstance(checks[name], dict) or checks[name].get("status") != "pass"
+               for name in required_gates)
+        or _sha(sealed_file) != digest
+    ):
+        raise ValueError("Selected experiment's sealed evidence does not confirm all public gates")
     source = _safe_repo_file(root, Path(path))
     if _sha(source) != digest:
         raise ValueError("Selected RTL hash no longer matches the frozen experiment")
@@ -86,6 +126,8 @@ def _load_selected(loop_report: Path, root: Path) -> dict:
         "loop_report_sha256": hashlib.sha256(raw).hexdigest(),
         "loop_id": report.get("loop_id"),
         "selection_experiment": matches[0],
+        "sealed_experiment_manifest_sha256": _sha(manifest_file),
+        "sealed_experiment_report_sha256": _sha(result_file),
     }
 
 
@@ -138,6 +180,8 @@ def audit_candidate(
             "loop_id": selected["loop_id"],
             "loop_report_sha256": selected["loop_report_sha256"],
             "selected_experiment": selected["selection_experiment"],
+            "sealed_experiment_manifest_sha256": selected["sealed_experiment_manifest_sha256"],
+            "sealed_experiment_report_sha256": selected["sealed_experiment_report_sha256"],
         } if selected else None,
         "audit": {
             "seed": audit_seed, "requested_vectors": count,
