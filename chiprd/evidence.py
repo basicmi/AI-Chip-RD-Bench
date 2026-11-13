@@ -33,6 +33,7 @@ MANIFEST_SCHEMA_VERSION = "1.0.0"
 
 EVALUATOR_INPUTS = (
     "chiprd/cli.py",
+    "chiprd/patches.py",
     "chiprd/evidence.py",
     "chiprd/harness.py",
     "chiprd/mutation.py",

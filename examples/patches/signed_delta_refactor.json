@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "cordic.rotation.q14.v1",
+  "patch_id": "signed_delta_refactor",
+  "parent_candidate_id": "baseline",
+  "generation": 1,
+  "parent_candidate_path": "tasks/cordic/cordic_rotator.sv",
+  "parent_candidate_sha256": "71b355cb187f392d817e48fac10b6c22b40e483bb9c01d35505dc78e3e55c009",
+  "patch_format": "unified_diff",
+  "patch": "--- a/tasks/cordic/cordic_rotator.sv\n+++ b/tasks/cordic/cordic_rotator.sv\n@@ -39,7 +39,14 @@\n     wire signed [31:0] x_shift = x >>> stage;\n     wire signed [31:0] y_shift = y >>> stage;\n-    wire signed [31:0] x_next = (z >= 0) ? x - y_shift : x + y_shift;\n-    wire signed [31:0] y_next = (z >= 0) ? y + x_shift : y - x_shift;\n-    wire signed [31:0] z_next = (z >= 0) ? z - atan_value(stage) : z + atan_value(stage);\n+\n+    // Re-express conditional add/subtract as a shared signed delta.\n+    // Two's-complement arithmetic is modulo 2^32, matching the reference.\n+    wire signed [31:0] x_delta = (z >= 0) ? -y_shift : y_shift;\n+    wire signed [31:0] y_delta = (z >= 0) ? x_shift : -x_shift;\n+    wire signed [31:0] z_delta = (z >= 0) ? -atan_value(stage) : atan_value(stage);\n+\n+    wire signed [31:0] x_next = x + x_delta;\n+    wire signed [31:0] y_next = y + y_delta;\n+    wire signed [31:0] z_next = z + z_delta;\n \n     always_ff @(posedge clk) begin\n",
+  "description": "Factor conditional CORDIC add/subtract operations into signed delta terms; preserve state and cycle latency.",
+  "predicted_improvement": 0
+}
