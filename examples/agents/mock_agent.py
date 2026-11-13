@@ -21,7 +21,9 @@ def main() -> int:
         proposal["parent_candidate_path"] = new_path
         proposal["parent_candidate_sha256"] = parent["candidate_sha256"]
         proposal["generation"] = parent["generation"] + 1
-        proposal["patch_id"] = "ci_signed_delta_refactor"
+        # A campaign runs independent loops in one repository-wide patch store.
+        # Include a short loop suffix so each run gets a unique candidate lineage.
+        proposal["patch_id"] = "ci_signed_delta_" + str(request.get("loop_id", "loop"))[-12:]
         proposal["patch"] = proposal["patch"].replace(
             f"--- a/{old_path}\n+++ b/{old_path}",
             f"--- a/{new_path}\n+++ b/{new_path}",
