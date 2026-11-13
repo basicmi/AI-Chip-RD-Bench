@@ -129,6 +129,18 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(result["stop_reason"], "agent_protocol_error")
         self.assertIn("JSON response", result["iterations"][0]["error"])
 
+
+    def test_rejects_non_string_action(self):
+        bad = self.root / "bad_action_agent.py"
+        bad.write_text(
+            "import json\\n"
+            "print(json.dumps({'schema_version':'1.0.0','action':[]}))\\n",
+            encoding="utf-8",
+        )
+        result = self.run_loop([sys.executable, str(bad)], AgentLoopBudget(max_iterations=1))
+        self.assertEqual(result["stop_reason"], "agent_protocol_error")
+        self.assertIn("patch or stop", result["iterations"][0]["error"])
+
     def test_wrong_parent_proposal_is_rejected(self):
         bad = self.root / "wrong_parent_agent.py"
         bad.write_text(

@@ -99,18 +99,18 @@ jobs:
             --max-experiment-seconds 600 \
             --output artifacts/search \
             --seed 20261113
-      - name: Apply an Agent-proposed RTL patch
-        run: |
-          python3 -m chiprd.cli apply-patch \
-            --patch-proposal examples/patches/signed_delta_refactor.json \
-            --output artifacts/agent-patches
-      - name: Run sealed experiment on the patched candidate
+      - name: Run bounded Agent closed-loop experiment with deterministic fixture
         shell: bash
         run: |
           source "$RUNNER_TEMP/oss-cad-suite/environment"
-          python3 -m chiprd.cli experiment \
-            --candidate artifacts/agent-patches/signed_delta_refactor/candidate.sv \
-            --output artifacts/agent-patch-experiment
+          python3 -m chiprd.cli agent-loop \
+            --agent-command-json '["python3","examples/agents/mock_agent.py"]' \
+            --max-iterations 2 \
+            --max-wall-clock-seconds 1800 \
+            --max-agent-seconds 60 \
+            --max-experiment-seconds 600 \
+            --output artifacts/agent-loops/ci \
+            --loop-id ci-agent-loop
       - name: Upload sealed experiment, reproduction, search and patch evidence
         if: always()
         uses: actions/upload-artifact@v4

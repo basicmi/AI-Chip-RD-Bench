@@ -183,7 +183,7 @@ def _parse_response(stdout: str) -> dict:
     if response.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("Unsupported Agent response schema_version")
     action = response.get("action")
-    if action not in {"patch", "stop"}:
+    if not isinstance(action, str) or action not in {"patch", "stop"}:
         raise ValueError("Agent action must be patch or stop")
     rationale = response.get("rationale", "")
     if not isinstance(rationale, str) or len(rationale) > 2_000:
@@ -324,7 +324,7 @@ def run_agent_loop(
             "metric": "minimize Yosys generic_cell_count",
             "metric_boundary": "generic synthesis proxy only; not physical PPA",
         },
-        "controller_sha256": _sha_file(root / "chiprd" / "agent_loop.py"),
+        "controller_sha256": _sha_file(Path(__file__).resolve()),
     }
     manifest_path = output / "agent_loop_manifest.json"
     ledger_path = output / "agent_loop_ledger.jsonl"
