@@ -93,7 +93,7 @@ The self-test includes:
 
 The search runner accepts a versioned JSON proposal pool. An external Agent or user creates candidate RTL files inside the repository workspace and submits their repository-relative paths, lineage and optional predicted improvement:
 
-\`\`\`json
+```json
 {
   "schema_version": "1.0.0",
   "task_id": "cordic.rotation.q14.v1",
@@ -113,11 +113,11 @@ The search runner accepts a versioned JSON proposal pool. An external Agent or u
     }
   ]
 }
-\`\`\`
+```
 
 Run the evolutionary baseline with a fixed budget:
 
-\`\`\`bash
+```bash
 python3 -m chiprd.cli search \\
   --proposals examples/search/cordic_candidate_pool.json \\
   --strategy evolutionary \\
@@ -127,11 +127,11 @@ python3 -m chiprd.cli search \\
   --max-candidate-bytes 1048576 \\
   --output artifacts/search \\
   --seed 20261113
-\`\`\`
+```
 
 Three reproducible scheduling baselines are available:
 - **Random:** seeded random order within each generation.
-- **Greedy:** descending Agent-supplied \`predicted_improvement\` within each generation. This is a proposal-priority heuristic, not a measured reward.
+- **Greedy:** descending Agent-supplied `predicted_improvement` within each generation. This is a proposal-priority heuristic, not a measured reward.
 - **Evolutionary:** generation-based lineage scheduling. Only children of the top feasible parent fraction from the immediately preceding generation are eligible. Parent fitness is measured by the evaluator.
 
 The budget limits total experiment count, campaign wall-clock time, per-experiment runtime and candidate file size. Each experiment runs in a separate process group; on timeout, the runner terminates the process group before recording a timeout result. Candidate paths must resolve to regular files inside the repository, parent links must be valid and point to the immediately preceding generation, and candidate bytes are re-hashed before execution.
@@ -139,9 +139,9 @@ The budget limits total experiment count, campaign wall-clock time, per-experime
 A candidate is feasible only if its sealed source hash matches the submitted proposal, the snapshot remains intact, all six public gates pass, and a valid generic synthesis cell count is present. The current objective minimizes Yosys generic cell count subject to those hard correctness gates. This is a coarse synthesis proxy, not physical area, timing, power or PPA.
 
 The campaign writes:
-- \`search_manifest.json\`: proposal-pool hash, scheduler/CLI hashes, strategy, seed, budget and objective contract.
-- \`search_report.json\`: budget consumption, candidate lineage, gate outcomes, feasibility, fitness, baseline comparison, best candidate and skipped-proposal reasons.
-- \`experiments/<candidate_id>/\`: each candidate's sealed manifest, hash-chained ledger, full evaluator reports and runner logs.
+- `search_manifest.json`: proposal-pool hash, scheduler/CLI hashes, strategy, seed, budget and objective contract.
+- `search_report.json`: budget consumption, candidate lineage, gate outcomes, feasibility, fitness, baseline comparison, best candidate and skipped-proposal reasons.
+- `experiments/<candidate_id>/`: each candidate's sealed manifest, hash-chained ledger, full evaluator reports and runner logs.
 
 **Important API boundary:** this PR implements the candidate submission schema, validation, scheduling, budget enforcement and evidence aggregation. It does not implement an LLM Agent, RTL patch generation, mutation/recombination operators or a closed-loop proposer. Those can be connected through the proposal-pool interface in a later phase.
 

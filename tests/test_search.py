@@ -204,7 +204,7 @@ class SearchTests(unittest.TestCase):
 
             def execute(candidate, output, seed, timeout):
                 seen.append(candidate.stem)
-                return fake_execution(candidate.stem, 100)
+                return fake_execution(candidate, 100)
 
             with patch("chiprd.search.ROOT", self.root), patch(
                 "chiprd.search._run_sealed_experiment", side_effect=execute

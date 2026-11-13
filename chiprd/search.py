@@ -35,16 +35,31 @@ class SearchBudget:
     elite_parent_fraction: float = 0.5
 
     def validate(self) -> None:
-        if self.max_experiments < 1:
-            raise ValueError("max_experiments must be at least 1")
-        if self.max_wall_clock_seconds <= 0:
-            raise ValueError("max_wall_clock_seconds must be positive")
-        if self.max_experiment_seconds <= 0:
-            raise ValueError("max_experiment_seconds must be positive")
-        if self.max_candidate_bytes < 1:
-            raise ValueError("max_candidate_bytes must be at least 1")
-        if not 0 < self.elite_parent_fraction <= 1:
-            raise ValueError("elite_parent_fraction must be in (0, 1]")
+        if isinstance(self.max_experiments, bool) or not isinstance(self.max_experiments, int) or self.max_experiments < 1:
+            raise ValueError("max_experiments must be an integer of at least 1")
+        if isinstance(self.max_candidate_bytes, bool) or not isinstance(self.max_candidate_bytes, int) or self.max_candidate_bytes < 1:
+            raise ValueError("max_candidate_bytes must be an integer of at least 1")
+        if (
+            isinstance(self.max_wall_clock_seconds, bool)
+            or not isinstance(self.max_wall_clock_seconds, (int, float))
+            or not math.isfinite(self.max_wall_clock_seconds)
+            or self.max_wall_clock_seconds <= 0
+        ):
+            raise ValueError("max_wall_clock_seconds must be finite and positive")
+        if (
+            isinstance(self.max_experiment_seconds, bool)
+            or not isinstance(self.max_experiment_seconds, (int, float))
+            or not math.isfinite(self.max_experiment_seconds)
+            or self.max_experiment_seconds <= 0
+        ):
+            raise ValueError("max_experiment_seconds must be finite and positive")
+        if (
+            isinstance(self.elite_parent_fraction, bool)
+            or not isinstance(self.elite_parent_fraction, (int, float))
+            or not math.isfinite(self.elite_parent_fraction)
+            or not 0 < self.elite_parent_fraction <= 1
+        ):
+            raise ValueError("elite_parent_fraction must be finite and in (0, 1]")
 
 
 @dataclass(frozen=True)
@@ -91,6 +106,8 @@ def load_proposals(path: Path, budget: SearchBudget) -> tuple[list[CandidateProp
     path = path.resolve(strict=True)
     raw_bytes = path.read_bytes()
     payload = json.loads(raw_bytes.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Candidate pool root must be a JSON object")
     if payload.get("schema_version") != SEARCH_SCHEMA_VERSION:
         raise ValueError("Unsupported candidate-pool schema_version")
     if payload.get("task_id") != "cordic.rotation.q14.v1":
@@ -157,8 +174,8 @@ def load_proposals(path: Path, budget: SearchBudget) -> tuple[list[CandidateProp
             parent = by_id.get(item.parent_id)
             if parent is None:
                 raise ValueError(f"{item.candidate_id}: unknown parent_id {item.parent_id}")
-            if parent.generation >= item.generation:
-                raise ValueError(f"{item.candidate_id}: parent must belong to an earlier generation")
+            if parent.generation != item.generation - 1:
+                raise ValueError(f"{item.candidate_id}: parent must belong to the immediately preceding generation")
     return proposals, hashlib.sha256(raw_bytes).hexdigest()
 
 
@@ -173,14 +190,24 @@ def _run_sealed_experiment(
         "--seed", str(seed),
     ]
     started = time.monotonic()
-    process = subprocess.Popen(
-        command,
-        cwd=ROOT,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=(os.name == "posix"),
-    )
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=(os.name == "posix"),
+        )
+    except OSError as exc:
+        return {
+            "status": "error",
+            "report": None,
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "exit_code": None,
+            "timed_out": False,
+            "error": f"could not start experiment runner: {exc}",
+        }
     timed_out = False
     try:
         stdout, stderr = process.communicate(timeout=timeout_seconds)
@@ -241,6 +268,7 @@ def _metrics(execution: dict, expected_candidate_sha256: str) -> dict:
         and source_hash_matches
         and all_gates_pass
         and isinstance(cell_count, int)
+        and not isinstance(cell_count, bool)
         and cell_count >= 0
     )
     return {
@@ -383,7 +411,7 @@ def run_search(
         elif strategy == "evolutionary":
             previous = [
                 item for item in records
-                if item["generation"] < generation and item["feasible"]
+                if item["generation"] == generation - 1 and item["feasible"]
             ]
             previous.sort(key=lambda item: (item["fitness"], item["candidate_id"]), reverse=True)
             if not previous:
