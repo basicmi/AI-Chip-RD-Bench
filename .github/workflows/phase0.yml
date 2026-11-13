@@ -139,7 +139,7 @@ jobs:
           if-no-files-found: warn
 
   liberty-mapping:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
     steps:
@@ -180,7 +180,7 @@ jobs:
           curl -L --fail --retry 3 \
             https://github.com/Precision-Innovations/OpenROAD/releases/download/2024-12-14/openroad_2.0-17598-ga008522d8_amd64-ubuntu-22.04.deb \
             -o "$deb"
-          sha256sum "$deb"
+          echo "40ed178396b0276a5d5dfbbe695c9de9aac9088157a6655be02b39a0cef07207  $deb" | sha256sum -c -
           sudo apt-get update
           sudo apt-get install -y "$deb"
           openroad -version
