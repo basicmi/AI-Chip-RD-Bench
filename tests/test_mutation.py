@@ -5,9 +5,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from chiprd.harness import ROOT
-from chiprd.mutation import MUTATIONS, build_mutant, run_mutations
+from chiprd.mutation import (
+    MUTATIONS, MutationNotApplicable, build_mutant, run_mutations,
+)
 
 CANDIDATE = ROOT / "tasks" / "cordic" / "cordic_rotator.sv"
+REFACTOR = ROOT / "tasks" / "cordic" / "cordic_rotator_refactor.sv"
 
 
 class MutationTests(unittest.TestCase):
@@ -26,6 +29,25 @@ class MutationTests(unittest.TestCase):
         mutation = MUTATIONS[0]
         with self.assertRaises(ValueError):
             build_mutant("// changed RTL", mutation)
+
+    def test_structural_refactor_reports_non_applicable_source_pattern(self):
+        mutation = next(item for item in MUTATIONS if item["id"] == "reverse_x_rotation")
+        source = REFACTOR.read_text(encoding="utf-8")
+        with self.assertRaises(MutationNotApplicable):
+            build_mutant(source, mutation)
+
+    def test_campaign_excludes_non_applicable_mutations_but_reports_coverage(self):
+        baseline = {"status": "pass", "tool": "verilator"}
+        killed = {"status": "fail", "reason": "oracle_mismatch"}
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("chiprd.mutation.verify", side_effect=[baseline] + [killed] * 4):
+                report = run_mutations(REFACTOR, Path(directory) / "run")
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["summary"]["total"], 5)
+        self.assertEqual(report["summary"]["applicable"], 4)
+        self.assertEqual(report["summary"]["killed"], 4)
+        self.assertEqual(report["summary"]["not_applicable"], 1)
+        self.assertEqual(report["mutation_score"], 1.0)
 
     def test_all_mutants_must_be_killed(self):
         baseline = {"status": "pass", "tool": "verilator"}

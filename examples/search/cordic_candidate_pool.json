@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "cordic.rotation.q14.v1",
+  "proposals": [
+    {
+      "candidate_id": "baseline",
+      "candidate_path": "tasks/cordic/cordic_rotator.sv",
+      "generation": 0,
+      "predicted_improvement": 0.0
+    },
+    {
+      "candidate_id": "signed_delta_refactor",
+      "candidate_path": "tasks/cordic/cordic_rotator_refactor.sv",
+      "parent_id": "baseline",
+      "generation": 1,
+      "predicted_improvement": 0.0
+    }
+  ]
+}

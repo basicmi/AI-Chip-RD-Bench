@@ -6,7 +6,7 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, sealed experiment manifests, a JSONL experiment ledger and reproducibility checks.
 
-**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and Agent search remain future milestones.
+**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and autonomous RTL generation remain future milestones. A budgeted proposal scheduler is provided, but it evaluates externally generated candidates rather than generating RTL.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
@@ -65,7 +65,7 @@ A reproduction PASS means the normalized experiment results match under the same
 
 ### Simulation mutation campaign
 
-Five public RTL mutations are injected. The campaign passes only when the golden candidate passes and all five mutants are rejected by the independent functional evaluator. Tool/evaluator errors are not counted as kills.
+Five public source-pattern RTL mutations are defined. The candidate baseline must pass; every applicable mutant must be rejected by the independent functional evaluator. A mutation whose exact source pattern is absent is reported as `not_applicable`, excluded from the mutation-score denominator, and never counted as a kill. At least one mutation must be applicable, and any tool/evaluator error prevents a pass. Reports include both applicable coverage and mutation score so structurally different candidates are not silently credited with untested mutations.
 
 ### Formal protocol proof
 
@@ -88,6 +88,62 @@ The self-test includes:
 - A deliberately incorrect rotation-delta mutation. EQY must reject it.
 
 **Important boundary:** this is cycle-by-cycle sequential equivalence, not latency-insensitive equivalence. A pipeline retiming that changes externally visible response cycles may be functionally valid under a transaction-level specification but will not satisfy this strict contract. Such transformations need a separate latency/refinement checker rather than weakening the cycle-accurate result. EQY also does not replace the analytic numerical oracle or protocol-property proof.
+
+### Agent proposal API and budgeted search
+
+The search runner accepts a versioned JSON proposal pool. An external Agent or user creates candidate RTL files inside the repository workspace and submits their repository-relative paths, lineage and optional predicted improvement:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "task_id": "cordic.rotation.q14.v1",
+  "proposals": [
+    {
+      "candidate_id": "baseline",
+      "candidate_path": "tasks/cordic/cordic_rotator.sv",
+      "generation": 0,
+      "predicted_improvement": 0.0
+    },
+    {
+      "candidate_id": "signed_delta_refactor",
+      "candidate_path": "tasks/cordic/cordic_rotator_refactor.sv",
+      "parent_id": "baseline",
+      "generation": 1,
+      "predicted_improvement": 0.0
+    }
+  ]
+}
+```
+
+Run the evolutionary baseline with a fixed budget:
+
+```bash
+python3 -m chiprd.cli search \\
+  --proposals examples/search/cordic_candidate_pool.json \\
+  --strategy evolutionary \\
+  --max-experiments 2 \\
+  --max-wall-clock-seconds 1200 \\
+  --max-experiment-seconds 600 \\
+  --max-candidate-bytes 1048576 \\
+  --output artifacts/search \\
+  --seed 20261113
+```
+
+Three reproducible scheduling baselines are available:
+- **Random:** seeded random order within each generation.
+- **Greedy:** descending Agent-supplied `predicted_improvement` within each generation. This is a proposal-priority heuristic, not a measured reward.
+- **Evolutionary:** generation-based lineage scheduling. Only children of the top feasible parent fraction from the immediately preceding generation are eligible. Parent fitness is measured by the evaluator.
+
+The budget limits total experiment count, campaign wall-clock time, per-experiment runtime and candidate file size. Each experiment runs in a separate process group; on timeout, the runner terminates the process group before recording a timeout result. Candidate paths must resolve to regular files inside the repository, parent links must be valid and point to the immediately preceding generation, and candidate bytes are re-hashed before execution.
+
+A candidate is feasible only if its sealed source hash matches the submitted proposal, the snapshot remains intact, all six public gates pass, and a valid generic synthesis cell count is present. The current objective minimizes Yosys generic cell count subject to those hard correctness gates. This is a coarse synthesis proxy, not physical area, timing, power or PPA.
+
+The campaign writes:
+- `search_manifest.json`: proposal-pool hash, scheduler/CLI hashes, strategy, seed, budget and objective contract.
+- `search_report.json`: budget consumption, candidate lineage, gate outcomes, feasibility, fitness, baseline comparison, best candidate and skipped-proposal reasons.
+- `experiments/<candidate_id>/`: each candidate's sealed manifest, hash-chained ledger, full evaluator reports and runner logs.
+
+**Important API boundary:** this PR implements the candidate submission schema, validation, scheduling, budget enforcement and evidence aggregation. It does not implement an LLM Agent, RTL patch generation, mutation/recombination operators or a closed-loop proposer. Those can be connected through the proposal-pool interface in a later phase.
 
 ### Evidence boundaries
 
