@@ -76,7 +76,7 @@ def _repo_candidate(relative_path: str) -> Path:
     path = Path(relative_path)
     if path.is_absolute():
         raise ValueError("candidate_path must be repository-relative")
-    candidate = (ROOT / path).resolve(strict=True)
+    candidate = (ROOT / path).resolve()
     try:
         candidate.relative_to(ROOT.resolve())
     except ValueError as exc:
@@ -221,24 +221,31 @@ def _run_sealed_experiment(
     }
 
 
-def _metrics(execution: dict) -> dict:
+def _metrics(execution: dict, expected_candidate_sha256: str) -> dict:
     report = execution.get("report") or {}
     checks = report.get("checks", {})
     signature = report.get("result_signature", {})
     synthesis = signature.get("functional_synthesis", {}).get("synthesis", {})
     cell_count = synthesis.get("generic_cell_count")
-    all_gates_pass = bool(checks) and all(
+    required_gates = {
+        "functional_synthesis", "mutation", "formal",
+        "formal_negative_control", "equivalence", "equivalence_selftest",
+    }
+    all_gates_pass = set(checks) == required_gates and all(
         item.get("status") == "pass" for item in checks.values()
     )
+    source_hash_matches = report.get("candidate_sha256") == expected_candidate_sha256
     feasible = (
         execution.get("status") == "pass"
         and report.get("candidate_snapshot_intact") is True
+        and source_hash_matches
         and all_gates_pass
         and isinstance(cell_count, int)
         and cell_count >= 0
     )
     return {
         "feasible": feasible,
+        "source_hash_matches": source_hash_matches,
         "generic_cell_count": cell_count if isinstance(cell_count, int) else None,
         # Lower generic cell count is better. This is only a synthesis proxy,
         # not standard-cell area, timing, power or physical PPA.
@@ -339,10 +346,20 @@ def run_search(
             return False
         timeout_seconds = min(budget.max_experiment_seconds, remaining)
         experiment_dir = output / "experiments" / proposal.candidate_id
-        execution = _run_sealed_experiment(
-            proposal.candidate_path, experiment_dir, seed, timeout_seconds
-        )
-        metrics = _metrics(execution)
+        if _sha256(proposal.candidate_path) != proposal.candidate_sha256:
+            execution = {
+                "status": "error",
+                "report": None,
+                "elapsed_seconds": 0.0,
+                "exit_code": None,
+                "timed_out": False,
+                "error": "candidate source changed after proposal-pool validation",
+            }
+        else:
+            execution = _run_sealed_experiment(
+                proposal.candidate_path, experiment_dir, seed, timeout_seconds
+            )
+        metrics = _metrics(execution, proposal.candidate_sha256)
         record = {
             "candidate_id": proposal.candidate_id,
             "candidate_path": str(proposal.candidate_path.relative_to(ROOT)),

@@ -11,6 +11,9 @@ def write_pool(root: Path, entries: list[dict]) -> Path:
     (root / "baseline.sv").write_text("module baseline; endmodule\n")
     (root / "variant_a.sv").write_text("module variant_a; endmodule\n")
     (root / "variant_b.sv").write_text("module variant_b; endmodule\n")
+    package = root / "chiprd"
+    package.mkdir(exist_ok=True)
+    (package / "cli.py").write_text("# test cli hash input\\n")
     path = root / "pool.json"
     path.write_text(json.dumps({
         "schema_version": "1.0.0",
@@ -20,7 +23,7 @@ def write_pool(root: Path, entries: list[dict]) -> Path:
     return path
 
 
-def fake_execution(candidate_id: str, cells: int, status: str = "pass") -> dict:
+def fake_execution(candidate_path: Path, cells: int, status: str = "pass") -> dict:
     gates = {name: status for name in (
         "functional_synthesis", "mutation", "formal",
         "formal_negative_control", "equivalence", "equivalence_selftest",
@@ -30,6 +33,7 @@ def fake_execution(candidate_id: str, cells: int, status: str = "pass") -> dict:
         "report": {
             "status": status,
             "candidate_snapshot_intact": True,
+            "candidate_sha256": __import__("hashlib").sha256(candidate_path.read_bytes()).hexdigest(),
             "checks": {name: {"status": value} for name, value in gates.items()},
             "result_signature": {
                 "functional_synthesis": {
@@ -98,8 +102,8 @@ class SearchTests(unittest.TestCase):
         with patch("chiprd.search.ROOT", self.root), patch(
             "chiprd.search._run_sealed_experiment",
             side_effect=[
-                fake_execution("variant_b", 120),
-                fake_execution("variant_a", 130),
+                fake_execution(self.root / "variant_b.sv", 120),
+                fake_execution(self.root / "variant_a.sv", 130),
             ],
         ) as runner:
             report = run_search(
@@ -125,7 +129,7 @@ class SearchTests(unittest.TestCase):
 
         def execute(candidate, output, seed, timeout):
             seen.append(candidate.name)
-            return fake_execution(candidate.stem, 100 if candidate.stem == "variant_a" else 200)
+            return fake_execution(candidate, 100 if candidate.stem == "variant_a" else 200)
 
         with patch("chiprd.search.ROOT", self.root), patch(
             "chiprd.search._run_sealed_experiment", side_effect=execute
@@ -150,7 +154,7 @@ class SearchTests(unittest.TestCase):
         def execute(candidate, output, seed, timeout):
             seen.append(candidate.name)
             cells = 100 if candidate.name == "baseline.sv" else 200
-            return fake_execution(candidate.stem, cells)
+            return fake_execution(candidate, cells)
 
         with patch("chiprd.search.ROOT", self.root), patch(
             "chiprd.search._run_sealed_experiment", side_effect=execute
@@ -175,7 +179,7 @@ class SearchTests(unittest.TestCase):
         pool = write_pool(self.root, entries)
         with patch("chiprd.search.ROOT", self.root), patch(
             "chiprd.search._run_sealed_experiment",
-            return_value=fake_execution("baseline", 100, status="fail"),
+            return_value=fake_execution(self.root / "baseline.sv", 100, status="fail"),
         ) as runner:
             report = run_search(
                 pool, self.root / "search", strategy="evolutionary",
