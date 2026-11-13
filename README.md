@@ -4,54 +4,58 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 ## Phase 0: CORDIC Golden Task
 
-This repository starts with a deliberately narrow, independently checked fixed-point CORDIC rotation task. It provides an RTL example, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, mutation campaign, structured evidence files, CI and Docker.
+This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, structured evidence and CI.
 
-**Scope:** functional simulation, mutation sensitivity and generic synthesis only. The generic cell count is not physical PPA or tape-out sign-off. Formal checking, private hidden-test hosting, actual PDK/SDC/OpenROAD flows and Agent search are future milestones; they are not claimed as implemented here.
+**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and Agent search remain future milestones.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y verilator yosys make g++ python3
+sudo apt-get install -y verilator yosys z3 git make python3
+python3 -m pip install click
+git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
+make -C /tmp/sby install PREFIX="$HOME/.local"
+export PATH="$HOME/.local/bin:$PATH"
+
 python3 -m unittest discover -s tests -v
-python3 -m chiprd.cli smoke
-python3 -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/cordic
+python3 -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
 python3 -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
-cat artifacts/cordic/report.json
-cat artifacts/mutation/mutation_report.json
+python3 -m chiprd.cli formal --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal
+python3 -m chiprd.cli formal-negative-control --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal-negative-control
 ```
 
-A passing `all` command must have `"status": "pass"` plus both functional and synthesis sections. Missing tools cause explicit **error**, never a fake pass. A functional failure prevents the synthesis stage in `all` mode.
+### Simulation mutation campaign
 
-The mutation campaign first verifies an immutable candidate snapshot. It then injects five documented functional faults (gain initialization, rotation direction, arctangent table, output mapping and valid handshake). The campaign passes only when the baseline passes and **all five mutants are rejected** by the independent functional evaluator. The mutation score is killed mutants divided by total mutants. A compile or simulation failure counts as a killed mutant; an evaluator/tool error is reported separately and does not count as a kill.
+Five public RTL mutations are injected. The campaign passes only when the golden candidate passes and all five mutants are rejected by the independent functional evaluator. Tool/evaluator errors are not counted as kills.
 
-### Docker
+### Formal protocol proof
 
-```bash
-docker build -t ai-chip-rd-bench:phase0 .
-docker run --rm -v "$PWD/artifacts:/work/artifacts" ai-chip-rd-bench:phase0
-```
+The SymbiYosys task checks:
+- Completion valid is exactly one cycle.
+- No completion occurs without a previously accepted request.
+- Every accepted request completes within the task's **32-cycle maximum latency**; the task does not require a specific implementation latency.
+- Output registers remain stable when no completion is valid.
+
+The harness assumes synchronous reset on the first formal clock and deasserted reset thereafter, preventing reset from masking an outstanding-request timeout. The runner uses `smtbmc z3` in SBY `prove` mode. It reports `proof_status: proven` only for SBY's explicit PASS marker. Unknown results and tool errors are not passes. A separate negative-control run suppresses the completion-valid pulse and requires the formal assertions to fail.
+
+**Formal scope is limited:** this does not prove sine/cosine numerical accuracy, complete functional equivalence, CDC, reset recovery/removal, physical timing, area, power or silicon correctness. Numerical accuracy remains covered by the independent Verilator + analytic oracle.
 
 ### Evidence
 
-`artifacts/cordic/report.json` includes task ID, SHA-256 of candidate, tool versions, seed, functional failures and generic cell statistics. Compile, simulation and Yosys logs are saved alongside it.
+- `artifacts/ci/report.json`: candidate hash, tool versions, functional results and generic synthesis statistics.
+- `artifacts/mutation/`: sealed candidate snapshot, manifest, mutants and per-mutant logs.
+- `artifacts/formal/formal_report.json`: candidate/harness hashes, tool versions, proof mode/depth, properties and proof status.
+- `artifacts/formal-negative-control/`: baseline proof and deliberately failing mutant proof.
 
-`artifacts/mutation/` contains the sealed candidate snapshot, a manifest binding the candidate/testbench/oracle hashes and seed, baseline evidence, each generated mutant, per-mutant Verilator logs, and `mutation_report.json`. This makes the public mutation campaign reproducible; it does not make the public tests secret.
+### Trust model
 
-### Verification and trust model
-
-- The reference model is analytic sine/cosine, independent of the shift-add RTL algorithm.
-- The evaluator owns the testbench and computes an independent score from simulator output.
-- Deterministic vectors cover zero, both signs, near-zero and angular boundaries.
-- The five public mutations are a small, explicit sensitivity check, not comprehensive fault coverage or a replacement for held-out tests.
-- The current repository hosts *public* tests only. A public CI file is **not a secret hidden test**. Proper held-out evaluation requires separate, access-controlled infrastructure.
-- This is an engineering harness, **not an adversarial sandbox**; run untrusted HDL/tool commands inside containers or a dedicated runner.
-- No production PPA, formal proof, silicon measurement, or tape-out assertion is made.
+The repository contains public tests, not secret hidden tests. The harness is not an adversarial sandbox; execute untrusted HDL only in isolated runners. No production PPA, complete formal functional proof, silicon measurement or tape-out assertion is made.
 
 ### Planned next steps
 
-1. Formal / equivalence adapters (SymbiYosys / EQY) with explicit bounded/proven statuses.
-2. Stronger randomized and boundary-focused validation plus private held-out evaluator design.
+1. Strengthen randomized and boundary-focused validation plus private held-out evaluator design.
+2. Add sequential equivalence (EQY) for behavior-preserving RTL transformations.
 3. Candidate sealing, evaluator manifests, schema validation and budget ledger.
 4. OpenROAD reproducible PPA on a fixed public platform and constraints.
 5. Model-independent Agent API and fixed-budget search baselines.

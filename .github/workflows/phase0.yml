@@ -14,18 +14,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install open-source EDA tools
+      - name: Install simulation and synthesis tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y verilator yosys
+          sudo apt-get install -y verilator yosys z3 git make
+      - name: Install SymbiYosys
+        run: |
+          python -m pip install click
+          git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
+          make -C /tmp/sby install PREFIX="$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run Python unit tests
         run: python -m unittest discover -s tests -v
       - name: Verify and synthesize CORDIC candidate
-        run: |
-          python -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
-      - name: Run mutation sensitivity campaign
-        run: |
-          python -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
+        run: python -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
+      - name: Run simulation mutation sensitivity campaign
+        run: python -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
+      - name: Prove CORDIC protocol properties
+        run: python -m chiprd.cli formal --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal
+      - name: Run formal negative control
+        run: python -m chiprd.cli formal-negative-control --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal-negative-control
       - name: Upload evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -34,4 +42,6 @@ jobs:
           path: |
             artifacts/ci/
             artifacts/mutation/
+            artifacts/formal/
+            artifacts/formal-negative-control/
           if-no-files-found: warn
