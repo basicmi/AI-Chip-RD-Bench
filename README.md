@@ -268,6 +268,23 @@ Aggregate mean, median, range and sample standard deviation are descriptive summ
 
 **Cost and privacy:** a campaign makes real model calls through the configured Agent. The maximum planned call count is `runs × max_iterations`, plus each run's baseline/candidate EDA work. Review provider billing and data-sharing terms before running. GitHub CI uses the deterministic mock Agent only; it does not call a live model.
 
+### Liberty-mapped standard-cell area (Phase 12)
+
+The generic Yosys cell count is retained as a technology-independent structural statistic, but it must not be interpreted as silicon area. Phase 12 adds an optional **Liberty-based technology mapping** step. It maps a candidate and a reference RTL through the same Yosys + ABC + DFFLIBMAP flow and reports the sum of standard-cell area as defined by the supplied Liberty file.
+
+```bash
+python3 -m chiprd.cli ppa \
+  --candidate tasks/cordic/cordic_rotator_refactor.sv \
+  --reference tasks/cordic/cordic_rotator.sv \
+  --liberty /path/to/platform/typical.lib \
+  --platform-label my-platform-typical \
+  --output artifacts/ppa/my-platform
+```
+
+The report records the candidate/reference RTL hashes, Liberty SHA-256, declared cell count, Yosys version, mapped cell histograms, mapped area, and same-library area delta. The command refuses to overwrite an existing report, fails closed if the mapped netlist contains cell types absent from the Liberty, and writes per-side Yosys logs. CI downloads the Nangate45 reference Liberty from a pinned OpenROAD-flow-scripts commit and verifies its Git blob SHA before mapping both the CORDIC golden RTL and the structurally refactored RTL.
+
+**Interpretation boundary:** the Nangate45 library is a public educational/reference library. This flow reports *synthesis-mapped cell area only*. It does not perform placement, routing, SDC-constrained STA, wire-parasitic extraction, clock-tree synthesis, power estimation, IR/EM, DRC/LVS or sign-off. Do not compare absolute areas across different libraries or treat Nangate45 as a proxy for a modern production process. Physical timing and power require a later OpenROAD/STA flow with a named PDK, constraints and reproducible toolchain.
+
 ### Post-selection numerical audit (Phase 11)
 
 After an Agent run or campaign has **finished and frozen its best candidate**, run a separate numerical audit. The auditor reads the selected candidate from the archived loop report, requires a uniquely matched **passing and feasible** experiment, verifies its current RTL SHA-256, and tests it with a newly chosen oracle seed. It does not call an Agent or feed the resulting pass/fail status back into the search controller.
