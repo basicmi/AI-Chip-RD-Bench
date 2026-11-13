@@ -6,7 +6,7 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, sealed experiment manifests, a JSONL experiment ledger and reproducibility checks.
 
-**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and autonomous RTL generation remain future milestones. A budgeted proposal scheduler is provided, but it evaluates externally generated candidates rather than generating RTL.
+**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and autonomous RTL generation remain future milestones. The benchmark accepts externally generated, single-file unified diffs against the fixed CORDIC RTL, applies them to an isolated copy and records patch provenance; it still does not generate RTL itself. A budgeted proposal scheduler evaluates supplied candidates.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
@@ -118,14 +118,14 @@ The search runner accepts a versioned JSON proposal pool. An external Agent or u
 Run the evolutionary baseline with a fixed budget:
 
 ```bash
-python3 -m chiprd.cli search \\
-  --proposals examples/search/cordic_candidate_pool.json \\
-  --strategy evolutionary \\
-  --max-experiments 2 \\
-  --max-wall-clock-seconds 1200 \\
-  --max-experiment-seconds 600 \\
-  --max-candidate-bytes 1048576 \\
-  --output artifacts/search \\
+python3 -m chiprd.cli search \
+  --proposals examples/search/cordic_candidate_pool.json \
+  --strategy evolutionary \
+  --max-experiments 2 \
+  --max-wall-clock-seconds 1200 \
+  --max-experiment-seconds 600 \
+  --max-candidate-bytes 1048576 \
+  --output artifacts/search \
   --seed 20261113
 ```
 
@@ -144,6 +144,38 @@ The campaign writes:
 - `experiments/<candidate_id>/`: each candidate's sealed manifest, hash-chained ledger, full evaluator reports and runner logs.
 
 **Important API boundary:** this PR implements the candidate submission schema, validation, scheduling, budget enforcement and evidence aggregation. It does not implement an LLM Agent, RTL patch generation, mutation/recombination operators or a closed-loop proposer. Those can be connected through the proposal-pool interface in a later phase.
+
+### Agent RTL patch intake
+
+An external Agent can now submit a versioned patch proposal rather than writing directly into the golden RTL. The first adapter is intentionally narrow: one existing file, \`tasks/cordic/cordic_rotator.sv\`, with a unified diff. The proposal must identify its parent candidate by SHA-256, so a patch created against stale RTL is rejected.
+
+Apply the checked-in behavior-preserving signed-delta refactor:
+
+\`\`\`bash
+sha256sum tasks/cordic/cordic_rotator.sv
+python3 -m chiprd.cli apply-patch \
+  --patch-proposal examples/patches/signed_delta_refactor.json \
+  --output artifacts/agent-patches
+\`\`\`
+
+The command validates the proposal schema, parent hash, safe patch identifier, target path, patch size and unified-diff structure. It then runs \`git apply --check\` and applies the patch in a temporary workspace containing a copy of the parent RTL. The golden source is never modified. Multi-file, binary, rename, delete, new-file and file-mode patches are rejected. Output must remain inside the repository and an existing patch result is never overwritten.
+
+Subsequent generations may use a previous result as their parent by setting `parent_candidate_path` to `artifacts/agent-patches/<previous-patch-id>/candidate.sv`, carrying forward its candidate SHA-256, and incrementing `generation`. This makes patch lineage incremental without modifying any earlier candidate.
+
+The result directory contains:
+- \`candidate.sv\`: patched RTL, suitable for the sealed experiment runner and search proposal pool.
+- \`patch.diff\`: exact submitted unified diff.
+- \`patch_manifest.json\`: parent, patch and candidate hashes; patcher and Git versions; and a ready-to-copy \`search_proposal\` entry containing candidate ID, path, parent ID, generation and predicted improvement.
+
+Run the full evidence-gated experiment on the patched candidate:
+
+\`\`\`bash
+python3 -m chiprd.cli experiment \
+  --candidate artifacts/agent-patches/signed_delta_refactor/candidate.sv \
+  --output artifacts/agent-patch-experiment
+\`\`\`
+
+A successful patch application means only that the diff passed intake checks and was applied to the expected parent. It is **not** an RTL correctness or PPA result; the candidate must still pass the normal functional, mutation, formal and equivalence gates. The patch API does not invoke an LLM, generate patches, or provide an adversarial security sandbox. The checked-in example is an external, behavior-preserving patch used to test the intake-to-evaluation path.
 
 ### Evidence boundaries
 

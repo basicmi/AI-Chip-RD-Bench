@@ -99,7 +99,19 @@ jobs:
             --max-experiment-seconds 600 \
             --output artifacts/search \
             --seed 20261113
-      - name: Upload sealed experiment, reproduction and search evidence
+      - name: Apply an Agent-proposed RTL patch
+        run: |
+          python3 -m chiprd.cli apply-patch \
+            --patch-proposal examples/patches/signed_delta_refactor.json \
+            --output artifacts/agent-patches
+      - name: Run sealed experiment on the patched candidate
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli experiment \
+            --candidate artifacts/agent-patches/signed_delta_refactor/candidate.sv \
+            --output artifacts/agent-patch-experiment
+      - name: Upload sealed experiment, reproduction, search and patch evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -108,4 +120,6 @@ jobs:
             artifacts/experiment/
             artifacts/reproduced/
             artifacts/search/
+            artifacts/agent-patches/
+            artifacts/agent-patch-experiment/
           if-no-files-found: warn

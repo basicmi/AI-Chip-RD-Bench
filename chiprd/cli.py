@@ -14,6 +14,7 @@ from .formal import run_formal, run_formal_negative_control
 from .harness import ROOT, run
 from .mutation import run_mutations
 from .oracle import expected, vectors
+from .patches import apply_patch_proposal
 from .search import SearchBudget, run_search
 
 
@@ -22,12 +23,13 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search",
+        "experiment", "reproduce", "search", "apply-patch",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
     parser.add_argument("--manifest", type=Path, default=None)
     parser.add_argument("--proposals", type=Path, default=None)
+    parser.add_argument("--patch-proposal", type=Path, default=None)
     parser.add_argument("--strategy", choices=["random", "greedy", "evolutionary"], default="random")
     parser.add_argument("--max-experiments", type=int, default=4)
     parser.add_argument("--max-wall-clock-seconds", type=float, default=1800.0)
@@ -58,6 +60,10 @@ def main() -> int:
             args.proposals, args.output, strategy=args.strategy,
             seed=args.seed, budget=budget,
         )
+    elif args.mode == "apply-patch":
+        if args.patch_proposal is None:
+            parser.error("apply-patch requires --patch-proposal")
+        result = apply_patch_proposal(args.patch_proposal, args.output)
     else:
         default_candidate = DEFAULT_REFACTOR if args.mode == "equivalence" else ROOT / "tasks/cordic/cordic_rotator.sv"
         candidate = args.candidate or default_candidate
