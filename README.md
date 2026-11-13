@@ -218,7 +218,7 @@ python3 -m chiprd.cli agent-loop \
   --output artifacts/agent-loops/model-run
 ```
 
-For a remote OpenAI-compatible provider, use HTTPS and configure `CHIPRD_LLM_BASE_URL`, `CHIPRD_LLM_MODEL`, and `CHIPRD_LLM_API_KEY` in the environment. The default base URL is `https://api.openai.com/v1`. Do not put credentials in command arguments, code, or benchmark artifacts. Optional bounded settings: `CHIPRD_LLM_TIMEOUT_SECONDS` (default 90) and `CHIPRD_LLM_MAX_TOKENS` (default 4096). Plaintext remote HTTP requires explicit `CHIPRD_LLM_ALLOW_HTTP=1`.
+For a remote OpenAI-compatible provider, use HTTPS and configure `CHIPRD_LLM_BASE_URL`, `CHIPRD_LLM_MODEL`, and `CHIPRD_LLM_API_KEY` in the environment. The default base URL is `https://api.openai.com/v1`. Do not put credentials in command arguments, code, or benchmark artifacts. Optional bounded settings: `CHIPRD_LLM_TIMEOUT_SECONDS` (default 90), `CHIPRD_LLM_MAX_TOKENS` (default 4096), and `CHIPRD_LLM_TEMPERATURE` (default 0; range 0–2). The adapter records temperature, token cap and timeout in each Agent iteration. Plaintext remote HTTP requires explicit `CHIPRD_LLM_ALLOW_HTTP=1`.
 
 The model returns exactly one JSON object: `{"action":"stop","rationale":"..."}` or `{"action":"patch","rtl":"complete SystemVerilog source","rationale":"..."}`. The adapter constructs the single-file unified diff rather than accepting model-authored hunk coordinates. It rejects stale parent hashes, unauthorized paths, unchanged or unterminated RTL, oversized patches, malformed JSON and truncated model responses. Existing patch intake and all six independent public experiment checks remain authoritative.
 
@@ -241,6 +241,32 @@ The scorecard distinguishes **Agent calls, submitted patches, successfully appli
 The OpenAI-compatible adapter captures `prompt_tokens`, `completion_tokens`, and `total_tokens` **only if supplied by the provider's top-level usage field**. These are forwarded as optional, validated metadata through the Agent-loop protocol and archived per iteration. Unreported token usage remains `null` / unknown, never zero. Provider counters are not independently verified. The adapter retains an explicit maximum completion-token cap per model call through `CHIPRD_LLM_MAX_TOKENS`; the full token and dollar cost of a run may not be knowable for providers that omit usage.
 
 This benchmark does **not** independently establish production physical PPA or fully correct functionality. A scorecard alone is not a proof of real autonomous improvement. GitHub CI uses the deterministic fixture and never sends RTL to a provider; real-model comparison requires explicit configuration and cost/privacy approval.
+
+### Repeated Agent campaigns (Phase 10)
+
+To measure run-to-run variation, use `agent-campaign`. Each run starts from the same checked-in golden RTL, uses the same EDA seed and Agent/experiment budgets, and gets a unique loop ID. The campaign writes a manifest, each run's full loop evidence, per-run scorecards and an aggregate report:
+
+```bash
+export CHIPRD_LLM_BASE_URL=http://127.0.0.1:8000/v1
+export CHIPRD_LLM_MODEL=your-local-model
+export CHIPRD_LLM_TEMPERATURE=0.2
+python3 -m chiprd.cli agent-campaign \
+  --agent-command-json '["python3","examples/agents/llm_agent.py"]' \
+  --runs 3 \
+  --max-iterations 3 \
+  --max-agent-seconds 120 \
+  --max-experiment-seconds 600 \
+  --max-wall-clock-seconds 3600 \
+  --seed 20261113 \
+  --campaign-id local-model-repeat-01 \
+  --output artifacts/agent-campaigns/local-model-repeat-01
+```
+
+The campaign captures non-secret model settings (model ID, endpoint origin, temperature, token cap and timeout); API keys, URL paths, query strings and URL credentials are not recorded. It records the baseline/specification hashes, Agent adapter fingerprints, controller fingerprints, seed and budget, then checks whether those controls stayed consistent across runs. A failed run is retained and does not erase completed runs.
+
+Aggregate mean, median, range and sample standard deviation are descriptive summaries only. A fixed seed controls the EDA/oracle side; it does not force a hosted model to be deterministic. If comparing models, hold task, baseline, evaluator/toolchain, prompt, budgets and generation parameters constant, and repeat enough runs to characterize variability. Do not infer statistical significance from a small campaign.
+
+**Cost and privacy:** a campaign makes real model calls through the configured Agent. The maximum planned call count is `runs × max_iterations`, plus each run's baseline/candidate EDA work. Review provider billing and data-sharing terms before running. GitHub CI uses the deterministic mock Agent only; it does not call a live model.
 
 ### Evidence boundaries
 

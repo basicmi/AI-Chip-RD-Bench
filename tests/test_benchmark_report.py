@@ -138,6 +138,30 @@ class TokenContractTests(unittest.TestCase):
         parsed = _parse_response(json.dumps(response))
         self.assertEqual(parsed["usage"]["total_tokens"], 50)
 
+    def test_controller_validates_model_generation_parameters(self):
+        response = {
+            "schema_version": "1.0.0", "action": "stop",
+            "model_id": "local",
+            "model_config": {
+                "temperature": 0.5, "max_tokens": 2048, "timeout_seconds": 30.0,
+            },
+        }
+        self.assertEqual(
+            _parse_response(json.dumps(response))["model_config"]["temperature"], 0.5
+        )
+        for config in (
+            {"temperature": 3, "max_tokens": 512, "timeout_seconds": 10},
+            {"temperature": True, "max_tokens": 512, "timeout_seconds": 10},
+            {"temperature": 0, "max_tokens": True, "timeout_seconds": 10},
+            {"temperature": 0, "max_tokens": 512, "timeout_seconds": float("inf")},
+            {"temperature": 0, "max_tokens": 512, "timeout_seconds": 10, "api_key": "x"},
+        ):
+            with self.assertRaises(ValueError):
+                _parse_response(json.dumps({
+                    "schema_version": "1.0.0", "action": "stop",
+                    "model_config": config,
+                }))
+
     def test_controller_rejects_invalid_token_metadata(self):
         for usage in ({"total_tokens": -1}, {"total_tokens": True},
                       {"bad_token_counter": 5},

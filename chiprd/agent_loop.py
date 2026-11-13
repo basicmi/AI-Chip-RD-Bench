@@ -176,7 +176,7 @@ def _parse_response(stdout: str) -> dict:
         raise ValueError(f"Agent stdout must contain one JSON response: {exc}") from exc
     if not isinstance(response, dict):
         raise ValueError("Agent response root must be a JSON object")
-    allowed = {"schema_version", "action", "proposal", "rationale", "usage", "model_id"}
+    allowed = {"schema_version", "action", "proposal", "rationale", "usage", "model_id", "model_config"}
     unknown = set(response) - allowed
     if unknown:
         raise ValueError(f"Agent response contains unknown fields: {sorted(unknown)}")
@@ -194,6 +194,23 @@ def _parse_response(stdout: str) -> dict:
         or len(response["model_id"]) > 200
     ):
         raise ValueError("Agent model_id must be 1-200 characters")
+    if "model_config" in response:
+        config = response["model_config"]
+        if not isinstance(config, dict) or set(config) != {
+            "temperature", "max_tokens", "timeout_seconds"
+        }:
+            raise ValueError("Agent model_config must contain temperature, max_tokens and timeout_seconds")
+        temperature = config["temperature"]
+        timeout = config["timeout_seconds"]
+        max_tokens = config["max_tokens"]
+        if (isinstance(temperature, bool) or not isinstance(temperature, (int, float))
+                or not math.isfinite(float(temperature)) or not 0 <= temperature <= 2):
+            raise ValueError("Invalid Agent model temperature")
+        if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+                or not math.isfinite(float(timeout)) or not 1 <= timeout <= 240):
+            raise ValueError("Invalid Agent model timeout")
+        if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not 256 <= max_tokens <= 16384:
+            raise ValueError("Invalid Agent model max_tokens")
     if "usage" in response:
         usage = response["usage"]
         if not isinstance(usage, dict) or set(usage) - {
@@ -459,6 +476,8 @@ def run_agent_loop(
             item["model_id"] = response["model_id"]
         if "usage" in response:
             item["usage"] = response["usage"]
+        if "model_config" in response:
+            item["model_config"] = response["model_config"]
         if response["action"] == "stop":
             item["status"] = "agent_stopped"
             iterations.append(item)

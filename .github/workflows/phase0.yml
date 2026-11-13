@@ -99,23 +99,20 @@ jobs:
             --max-experiment-seconds 600 \
             --output artifacts/search \
             --seed 20261113
-      - name: Run bounded Agent closed-loop experiment with deterministic fixture
+      - name: Run repeated Agent campaign with deterministic fixture
         shell: bash
         run: |
           source "$RUNNER_TEMP/oss-cad-suite/environment"
-          python3 -m chiprd.cli agent-loop \
+          python3 -m chiprd.cli agent-campaign \
             --agent-command-json '["python3","examples/agents/mock_agent.py"]' \
-            --max-iterations 2 \
+            --runs 2 \
+            --max-iterations 1 \
             --max-wall-clock-seconds 1800 \
             --max-agent-seconds 60 \
             --max-experiment-seconds 600 \
-            --output artifacts/agent-loops/ci \
-            --loop-id ci-agent-loop
-      - name: Generate deterministic Agent loop benchmark scorecard
-        run: |
-          python3 -m chiprd.benchmark_report \
-            artifacts/agent-loops/ci/agent_loop_report.json \
-            --output artifacts/agent-loops/ci/scorecard.json
+            --output artifacts/agent-campaigns/ci \
+            --campaign-id ci-agent-campaign \
+            --seed 20261113
       - name: Upload sealed experiment, reproduction, search and patch evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -128,4 +125,5 @@ jobs:
             artifacts/agent-patches/
             artifacts/agent-patch-experiment/
             artifacts/agent-loops/
+            artifacts/agent-campaigns/
           if-no-files-found: warn

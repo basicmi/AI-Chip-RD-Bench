@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 from .agent_loop import AgentLoopBudget, parse_agent_command, run_agent_loop
+from .agent_campaign import run_agent_campaign
 from .equivalence import (
     DEFAULT_REFACTOR,
     DEFAULT_REFERENCE,
@@ -24,7 +25,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -35,6 +36,8 @@ def main() -> int:
     parser.add_argument("--max-iterations", type=int, default=3)
     parser.add_argument("--max-agent-seconds", type=float, default=180.0)
     parser.add_argument("--loop-id", type=str, default=None)
+    parser.add_argument("--campaign-id", type=str, default=None)
+    parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--strategy", choices=["random", "greedy", "evolutionary"], default="random")
     parser.add_argument("--max-experiments", type=int, default=4)
     parser.add_argument("--max-wall-clock-seconds", type=float, default=1800.0)
@@ -69,9 +72,9 @@ def main() -> int:
         if args.patch_proposal is None:
             parser.error("apply-patch requires --patch-proposal")
         result = apply_patch_proposal(args.patch_proposal, args.output)
-    elif args.mode == "agent-loop":
+    elif args.mode in {"agent-loop", "agent-campaign"}:
         if args.agent_command_json is None:
-            parser.error("agent-loop requires --agent-command-json")
+            parser.error(f"{args.mode} requires --agent-command-json")
         try:
             agent_command = parse_agent_command(args.agent_command_json)
         except ValueError as exc:
@@ -83,10 +86,16 @@ def main() -> int:
             max_experiment_seconds=args.max_experiment_seconds,
             max_candidate_bytes=args.max_candidate_bytes,
         )
-        result = run_agent_loop(
-            agent_command, args.output, budget=budget,
-            seed=args.seed, loop_id=args.loop_id,
-        )
+        if args.mode == "agent-loop":
+            result = run_agent_loop(
+                agent_command, args.output, budget=budget,
+                seed=args.seed, loop_id=args.loop_id,
+            )
+        else:
+            result = run_agent_campaign(
+                agent_command, args.output, runs=args.runs, budget=budget,
+                seed=args.seed, campaign_id=args.campaign_id or args.loop_id,
+            )
     else:
         default_candidate = DEFAULT_REFACTOR if args.mode == "equivalence" else ROOT / "tasks/cordic/cordic_rotator.sv"
         candidate = args.candidate or default_candidate
