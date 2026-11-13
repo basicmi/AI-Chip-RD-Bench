@@ -41,7 +41,7 @@ It produces:
 - `experiment_report.json`: aggregate status, per-check report pointers and normalized result signature.
 - Per-check folders containing the original detailed logs, reports, partitions and counterexample traces.
 
-The unified experiment runs functional verification plus generic synthesis, simulation mutation, protocol formal proof, formal negative control, candidate-to-reference EQY, and the EQY positive/negative self-test. All checks use the same sealed candidate hash. A missing tool, an inconclusive proof or a missing report fails closed; it is never silently counted as a pass.
+The unified experiment runs functional verification plus generic synthesis, simulation mutation, protocol formal proof, formal negative control, candidate-to-reference EQY, and the EQY positive/negative self-test. All candidate-specific checks use the same sealed candidate hash. The EQY harness self-test is a separate, fixed positive/negative fixture that validates the equivalence toolchain's ability to prove a behavior-preserving refactor and reject a deliberate mismatch. A missing tool, an inconclusive proof or a missing report fails closed; it is never silently counted as a pass.
 
 ### Reproduce an experiment
 
