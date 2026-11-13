@@ -176,7 +176,7 @@ def _parse_response(stdout: str) -> dict:
         raise ValueError(f"Agent stdout must contain one JSON response: {exc}") from exc
     if not isinstance(response, dict):
         raise ValueError("Agent response root must be a JSON object")
-    allowed = {"schema_version", "action", "proposal", "rationale"}
+    allowed = {"schema_version", "action", "proposal", "rationale", "usage", "model_id"}
     unknown = set(response) - allowed
     if unknown:
         raise ValueError(f"Agent response contains unknown fields: {sorted(unknown)}")
@@ -188,6 +188,25 @@ def _parse_response(stdout: str) -> dict:
     rationale = response.get("rationale", "")
     if not isinstance(rationale, str) or len(rationale) > 2_000:
         raise ValueError("Agent rationale must be a string of at most 2000 characters")
+    if "model_id" in response and (
+        not isinstance(response["model_id"], str)
+        or not response["model_id"]
+        or len(response["model_id"]) > 200
+    ):
+        raise ValueError("Agent model_id must be 1-200 characters")
+    if "usage" in response:
+        usage = response["usage"]
+        if not isinstance(usage, dict) or set(usage) - {
+            "prompt_tokens", "completion_tokens", "total_tokens"
+        }:
+            raise ValueError("Agent usage must contain only recognized token counters")
+        for key, value in usage.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 1_000_000_000:
+                raise ValueError(f"Invalid Agent token usage: {key}")
+        if all(key in usage for key in (
+            "prompt_tokens", "completion_tokens", "total_tokens"
+        )) and usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
+            raise ValueError("Inconsistent Agent token totals")
     if action == "patch" and not isinstance(response.get("proposal"), dict):
         raise ValueError("Agent patch action requires a proposal object")
     if action == "stop" and "proposal" in response:
@@ -436,6 +455,10 @@ def run_agent_loop(
         _write_json(response_path, response)
         item["agent_response_sha256"] = _sha_file(response_path)
         item["rationale"] = response.get("rationale", "")
+        if "model_id" in response:
+            item["model_id"] = response["model_id"]
+        if "usage" in response:
+            item["usage"] = response["usage"]
         if response["action"] == "stop":
             item["status"] = "agent_stopped"
             iterations.append(item)
