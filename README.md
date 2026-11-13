@@ -6,7 +6,7 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, sealed experiment manifests, a JSONL experiment ledger and reproducibility checks.
 
-**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and autonomous RTL generation remain future milestones. The benchmark accepts externally generated, single-file unified diffs against the fixed CORDIC RTL, applies them to an isolated copy and records patch provenance. Its bounded closed-loop controller can invoke an external Agent adapter and feed experiment results back, but it does not bundle an LLM or claim autonomous model-driven optimization by itself. A budgeted proposal scheduler evaluates supplied candidates.
+**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests and actual PDK/SDC/OpenROAD flows remain future milestones. The benchmark accepts externally generated, single-file unified diffs against the fixed CORDIC RTL, applies them to an isolated copy and records patch provenance. Its bounded closed-loop controller can invoke an external Agent adapter and feed experiment results back, but it does not bundle an LLM or claim autonomous model-driven optimization by itself. A budgeted proposal scheduler evaluates supplied candidates.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
@@ -199,6 +199,30 @@ The checked-in `mock_agent.py` is a deterministic CI fixture, not an LLM and not
 Each loop writes a manifest, a hash-chained event ledger, every Agent request/response and stdout/stderr, patch manifests, and sealed experiment directories. The controller enforces iteration, wall-clock, Agent-call, experiment and candidate-size budgets. Agent timeouts terminate the process group. A malformed response or protocol violation fails closed; an invalid patch is recorded and returned as feedback while the current parent remains unchanged. Failed experiments can be used as the next iteration's parent so the Agent can attempt a repair; only candidates passing all six gates are eligible to become the best candidate.
 
 The current objective minimizes Yosys `generic_cell_count` subject to all six public gates passing. This is a generic synthesis proxy, **not** physical area, timing, power or PPA. The controller invokes the supplied Agent command on the local machine; it is not a hostile-code sandbox. Run untrusted adapters and HDL in an isolated environment.
+
+### Model-backed Agent adapter (Phase 8)
+
+The reference adapter at `examples/agents/llm_agent.py` connects the closed-loop controller to an **OpenAI-compatible Chat Completions** endpoint using Python's standard library. Unlike the deterministic fixture, this adapter sends the task specification, full SHA-256 verified parent RTL, best feasible candidate, and previous evaluator feedback to a configured language model.
+
+Configure a local OpenAI-compatible serving endpoint explicitly (no API key is required for loopback):
+
+```bash
+export CHIPRD_LLM_BASE_URL=http://127.0.0.1:8000/v1
+export CHIPRD_LLM_MODEL=your-local-model
+python3 -m chiprd.cli agent-loop \
+  --agent-command-json '["python3","examples/agents/llm_agent.py"]' \
+  --max-iterations 3 \
+  --max-agent-seconds 120 \
+  --max-experiment-seconds 600 \
+  --max-wall-clock-seconds 3600 \
+  --output artifacts/agent-loops/model-run
+```
+
+For a remote OpenAI-compatible provider, use HTTPS and configure `CHIPRD_LLM_BASE_URL`, `CHIPRD_LLM_MODEL`, and `CHIPRD_LLM_API_KEY` in the environment. The default base URL is `https://api.openai.com/v1`. Do not put credentials in command arguments, code, or benchmark artifacts. Optional bounded settings: `CHIPRD_LLM_TIMEOUT_SECONDS` (default 90) and `CHIPRD_LLM_MAX_TOKENS` (default 4096). Plaintext remote HTTP requires explicit `CHIPRD_LLM_ALLOW_HTTP=1`.
+
+The model returns exactly one JSON object: `{"action":"stop","rationale":"..."}` or `{"action":"patch","rtl":"complete SystemVerilog source","rationale":"..."}`. The adapter constructs the single-file unified diff rather than accepting model-authored hunk coordinates. It rejects stale parent hashes, unauthorized paths, unchanged or unterminated RTL, oversized patches, malformed JSON and truncated model responses. Existing patch intake and all six independent public experiment checks remain authoritative.
+
+**Data and security boundaries:** Running this adapter may send the task spec, RTL and feedback to your configured provider, with possible API charges. Use only code and data you may share. The adapter does not log raw model responses or API keys, but the controller retains candidate RTL, patches, and feedback. This is an opt-in model integration, **not a sandbox or proof of autonomous optimization**. CI tests mock HTTP; CI never calls a live LLM or requires credentials.
 
 ### Evidence boundaries
 
