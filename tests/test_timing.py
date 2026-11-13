@@ -37,6 +37,12 @@ class TimingTests(unittest.TestCase):
             clock_period_ns=10, io_delay_ns=0.5,
         )
 
+    def test_old_opensta_netlist_compatibility(self):
+        source = "input signed [15:0] angle_in;\nwire signed [31:0] z;\noutput signed [15:0] y_out;\n"
+        fixed = timing._sta_netlist_text(source)
+        self.assertNotIn("signed", fixed)
+        self.assertIn("input [15:0] angle_in", fixed)
+
     def test_constraints_clock_inputs_outputs(self):
         sdc = timing._constraints(10, 0.5)
         self.assertIn("create_clock -name core_clk -period 10.000000", sdc)

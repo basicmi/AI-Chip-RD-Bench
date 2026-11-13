@@ -62,6 +62,16 @@ def _parse_timing(log: str) -> dict:
     }
 
 
+def _sta_netlist_text(yosys_verilog: str) -> str:
+    """Remove RTL-only signed wire qualifiers from a fully mapped gate netlist.
+
+    Older OpenSTA Verilog readers reject ANSI/non-ANSI 'input signed' syntax.
+    This is safe only after tech mapping: combinational arithmetic has already
+    been decomposed into standard cells and signedness cannot change cell wiring.
+    """
+    return re.sub(r"\\b(input|output|wire)\\s+signed\\b", r"\\1", yosys_verilog)
+
+
 def _analyze_one(source: Path, liberty: Path, tech_lef: Path, cells_lef: Path,
                  output: Path, sdc: str, known_cells: set[str]) -> dict:
     output.mkdir()
@@ -75,9 +85,10 @@ def _analyze_one(source: Path, liberty: Path, tech_lef: Path, cells_lef: Path,
             (liberty, "cells.lib"),
             (tech_lef, "tech.lef"),
             (cells_lef, "cells.lef"),
-            (output / "mapped.v", "mapped.v"),
+            # Source netlist is post-techmap; signed qualifiers have no role in gate connectivity.
         ):
             shutil.copyfile(original, work / name)
+        (work / "mapped.v").write_text(_sta_netlist_text((output / "mapped.v").read_text(encoding="utf-8")), encoding="utf-8")
         (work / "constraints.sdc").write_text(sdc, encoding="utf-8")
         script = (
             "read_lef tech.lef\n"
