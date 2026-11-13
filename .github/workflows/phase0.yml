@@ -113,6 +113,15 @@ jobs:
             --output artifacts/agent-campaigns/ci \
             --campaign-id ci-agent-campaign \
             --seed 20261113
+      - name: Post-selection numerical audit with independent seed
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli audit \
+            --loop-report artifacts/agent-campaigns/ci/runs/run-001/agent_loop_report.json \
+            --audit-seed 991977 \
+            --audit-vectors 128 \
+            --output artifacts/post-selection-audit
       - name: Upload sealed experiment, reproduction, search and patch evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -126,4 +135,5 @@ jobs:
             artifacts/agent-patch-experiment/
             artifacts/agent-loops/
             artifacts/agent-campaigns/
+            artifacts/post-selection-audit/
           if-no-files-found: warn
