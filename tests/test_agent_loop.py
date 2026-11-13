@@ -133,8 +133,8 @@ class AgentLoopTests(unittest.TestCase):
     def test_rejects_non_string_action(self):
         bad = self.root / "bad_action_agent.py"
         bad.write_text(
-            "import json\\n"
-            "print(json.dumps({'schema_version':'1.0.0','action':[]}))\\n",
+            "import json\n"
+            "print(json.dumps({'schema_version':'1.0.0','action':[]}))\n",
             encoding="utf-8",
         )
         result = self.run_loop([sys.executable, str(bad)], AgentLoopBudget(max_iterations=1))
