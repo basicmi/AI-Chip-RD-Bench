@@ -18,6 +18,7 @@ from .harness import ROOT, run
 from .mutation import run_mutations
 from .oracle import expected, vectors
 from .patches import apply_patch_proposal
+from .ppa import compare_area
 from .search import SearchBudget, run_search
 
 
@@ -26,7 +27,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit", "ppa",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -34,6 +35,8 @@ def main() -> int:
     parser.add_argument("--loop-report", type=Path, default=None)
     parser.add_argument("--audit-seed", type=int, default=None)
     parser.add_argument("--audit-vectors", type=int, default=128)
+    parser.add_argument("--liberty", type=Path, default=None)
+    parser.add_argument("--platform-label", type=str, default="user-supplied-liberty")
     parser.add_argument("--proposals", type=Path, default=None)
     parser.add_argument("--patch-proposal", type=Path, default=None)
     parser.add_argument("--agent-command-json", type=str, default=None)
@@ -51,7 +54,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
-    if args.mode == "audit":
+    if args.mode == "ppa":
+        if args.candidate is None or args.liberty is None:
+            parser.error("ppa requires --candidate and --liberty")
+        result = compare_area(
+            args.candidate, args.liberty, args.output,
+            reference=args.reference, platform_label=args.platform_label,
+        )
+    elif args.mode == "audit":
         if args.audit_seed is None:
             parser.error("audit requires an independently chosen --audit-seed")
         if args.loop_report is not None and args.candidate is not None:

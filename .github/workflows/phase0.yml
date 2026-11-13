@@ -137,3 +137,47 @@ jobs:
             artifacts/agent-campaigns/
             artifacts/post-selection-audit/
           if-no-files-found: warn
+
+  liberty-mapping:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download pinned OSS CAD Suite
+        run: |
+          archive="$RUNNER_TEMP/oss-cad-suite.tgz"
+          curl -L --fail --retry 3 \
+            https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-11-12/oss-cad-suite-linux-x64-20261112.tgz \
+            -o "$archive"
+          echo "346499255e3e5e6e9bf67e1d378a4e6bc249abd3de3b0caf5b57604bc8ba1752  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+      - name: Download pinned Nangate45 reference Liberty
+        shell: bash
+        run: |
+          liberty="$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib"
+          curl -L --fail --retry 3 \
+            https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD-flow-scripts/23341145f0fc92a522de26d5244a4a0013818f97/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib \
+            -o "$liberty"
+          test "$(git hash-object "$liberty")" = "90e4afb274cfc6514c587c434c77903d554117d1"
+      - name: Compare Liberty-mapped standard-cell area
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli ppa \
+            --candidate tasks/cordic/cordic_rotator_refactor.sv \
+            --reference tasks/cordic/cordic_rotator.sv \
+            --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+            --platform-label nangate45-reference \
+            --output artifacts/ppa/nangate45
+      - name: Upload Liberty mapping evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: liberty-mapping-evidence
+          path: artifacts/ppa/
+          if-no-files-found: warn
+
