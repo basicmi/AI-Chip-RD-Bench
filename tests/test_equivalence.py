@@ -22,6 +22,7 @@ class EquivalenceTests(unittest.TestCase):
         self.assertIn("[gate]", config)
         self.assertIn("read_verilog -sv gate.sv", config)
         self.assertIn("engine abc pdr", config)
+        self.assertEqual(config.count("memory_map"), 2)
 
     def test_eqy_classification_is_fail_closed(self):
         self.assertEqual(classify_eqy(0, "DONE (PASS, rc=0)"), ("pass", "equivalent"))
