@@ -4,9 +4,9 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 ## Phase 0: CORDIC Golden Task
 
-This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, structured evidence and CI.
+This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, structured evidence and CI.
 
-**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and Agent search remain future milestones.
+**Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and Agent search remain future milestones.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
@@ -41,12 +41,38 @@ The harness assumes synchronous reset on the first formal clock and deasserted r
 
 **Formal scope is limited:** this does not prove sine/cosine numerical accuracy, complete functional equivalence, CDC, reset recovery/removal, physical timing, area, power or silicon correctness. Numerical accuracy remains covered by the independent Verilator + analytic oracle.
 
+### Sequential equivalence (EQY)
+
+EQY compares a known-good **gold** RTL against a candidate **gate** RTL using Yosys partitioning and an SBY proof strategy. This repository's initial equivalence contract is deliberately **cycle-accurate**: top-level outputs must match on every clock for the same input/reset sequence. It is suitable for behavior-preserving RTL rewrites and many internal implementation changes when the external latency and protocol remain unchanged.
+
+The self-test includes:
+- A structural CORDIC refactor that factors conditional add/subtract operations into signed delta terms while preserving state, interface and latency. It must prove equivalent.
+- A deliberately incorrect rotation-delta mutation. EQY must reject it.
+
+Run with an EQY/Yosys/SBY toolchain from the same OSS CAD Suite release (the CI uses the pinned 2026-11-12 suite):
+
+```bash
+# Activate a compatible OSS CAD Suite installation first:
+source /path/to/oss-cad-suite/environment
+
+python3 -m chiprd.cli equivalence-selftest --output artifacts/equivalence
+python3 -m chiprd.cli equivalence \
+  --reference tasks/cordic/cordic_rotator.sv \
+  --candidate path/to/candidate.sv \
+  --output artifacts/equivalence-candidate
+```
+
+The runner records gold/gate SHA-256, EQY/Yosys/SBY versions, EQY logs, partitions and counterexample traces. It reports a pass only for EQY's explicit `DONE (PASS, rc=0)` marker. The self-test passes only when the refactor proves equivalent **and** the faulty mutant is rejected.
+
+**Important boundary:** this is cycle-by-cycle sequential equivalence, not latency-insensitive equivalence. A pipeline retiming that changes externally visible response cycles may be functionally valid under a transaction-level specification but will not satisfy this strict contract. Such transformations need a separate latency/refinement checker rather than weakening the cycle-accurate result. EQY also does not replace the analytic numerical oracle or protocol-property proof.
+
 ### Evidence
 
 - `artifacts/ci/report.json`: candidate hash, tool versions, functional results and generic synthesis statistics.
 - `artifacts/mutation/`: sealed candidate snapshot, manifest, mutants and per-mutant logs.
 - `artifacts/formal/formal_report.json`: candidate/harness hashes, tool versions, proof mode/depth, properties and proof status.
 - `artifacts/formal-negative-control/`: baseline proof and deliberately failing mutant proof.
+- `artifacts/equivalence/`: positive/negative EQY reports, matched partitions, logs and traces.
 
 ### Trust model
 
@@ -55,9 +81,8 @@ The repository contains public tests, not secret hidden tests. The harness is no
 ### Planned next steps
 
 1. Strengthen randomized and boundary-focused validation plus private held-out evaluator design.
-2. Add sequential equivalence (EQY) for behavior-preserving RTL transformations.
-3. Candidate sealing, evaluator manifests, schema validation and budget ledger.
-4. OpenROAD reproducible PPA on a fixed public platform and constraints.
-5. Model-independent Agent API and fixed-budget search baselines.
+2. Candidate sealing, evaluator manifests, schema validation and budget ledger.
+3. OpenROAD reproducible PPA on a fixed public platform and constraints.
+4. Model-independent Agent API and fixed-budget search baselines.
 
 See [CORDIC specification](tasks/cordic/spec.md).
