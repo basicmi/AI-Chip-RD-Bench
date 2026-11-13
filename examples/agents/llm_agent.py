@@ -68,6 +68,7 @@ def _config() -> dict:
         "api_key": api_key,
         "timeout": _env_number("CHIPRD_LLM_TIMEOUT_SECONDS", 90, 1, 240),
         "max_tokens": int(_env_number("CHIPRD_LLM_MAX_TOKENS", 4096, 256, 16384)),
+        "temperature": _env_number("CHIPRD_LLM_TEMPERATURE", 0, 0, 2),
     }
 
 
@@ -153,7 +154,7 @@ def _messages(payload: dict, source: str) -> list[dict]:
 
 def _call_model(config: dict, messages: list[dict]) -> dict:
     body = json.dumps({
-        "model": config["model"], "messages": messages, "temperature": 0,
+        "model": config["model"], "messages": messages, "temperature": config["temperature"],
         "max_tokens": config["max_tokens"],
         "response_format": {"type": "json_object"},
     }).encode("utf-8")
@@ -272,6 +273,11 @@ def main() -> int:
         model = _call_model(config, _messages(payload, original))
         result = _build_response(model, payload, parent, original)
         result["model_id"] = config["model"]
+        result["model_config"] = {
+            "temperature": config["temperature"],
+            "max_tokens": config["max_tokens"],
+            "timeout_seconds": config["timeout"],
+        }
         sys.stdout.write(json.dumps(result, sort_keys=True, ensure_ascii=False) + "\n")
         return 0
     except (AgentError, UnicodeDecodeError, json.JSONDecodeError, UnicodeEncodeError) as exc:

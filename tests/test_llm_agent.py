@@ -29,9 +29,12 @@ class FakeHTTP:
         return self.payload.read(count)
 
 
-def chat(answer, reason="stop"):
-    return {"choices": [{"message": {"content": json.dumps(answer)},
-                         "finish_reason": reason}]}
+def chat(answer, reason="stop", usage=None):
+    result = {"choices": [{"message": {"content": json.dumps(answer)},
+                          "finish_reason": reason}]}
+    if usage is not None:
+        result["usage"] = usage
+    return result
 
 
 class LLMAgentTests(unittest.TestCase):
@@ -113,34 +116,50 @@ class LLMAgentTests(unittest.TestCase):
     def test_local_endpoint_and_http_optin(self):
         with patch.dict(os.environ, {
             "CHIPRD_LLM_MODEL": "local", "CHIPRD_LLM_BASE_URL": "http://localhost:1234/v1",
-            "CHIPRD_LLM_API_KEY": "",
+            "CHIPRD_LLM_API_KEY": "", "CHIPRD_LLM_TEMPERATURE": "0.35",
         }):
             self.assertEqual(
                 agent._config()["endpoint"],
                 "http://localhost:1234/v1/chat/completions",
             )
+            self.assertEqual(agent._config()["temperature"], 0.35)
         with patch.dict(os.environ, {
             "CHIPRD_LLM_MODEL": "local", "CHIPRD_LLM_BASE_URL": "http://example.com/v1",
             "CHIPRD_LLM_API_KEY": "secret", "CHIPRD_LLM_ALLOW_HTTP": "0",
+            "CHIPRD_LLM_TEMPERATURE": "2.1",
         }):
             with self.assertRaisesRegex(agent.AgentError, "Plaintext remote HTTP"):
                 agent._config()
 
+    def test_temperature_bounds(self):
+        with patch.dict(os.environ, {
+            "CHIPRD_LLM_MODEL": "local",
+            "CHIPRD_LLM_BASE_URL": "http://localhost:1234/v1",
+            "CHIPRD_LLM_API_KEY": "",
+            "CHIPRD_LLM_TEMPERATURE": "2.1",
+        }):
+            with self.assertRaisesRegex(agent.AgentError, "CHIPRD_LLM_TEMPERATURE"):
+                agent._config()
+
     def test_mocked_http_chat_completions(self):
         cfg = {"model": "fixture", "endpoint": "https://example.org/v1/chat/completions",
-               "api_key": "dummy", "timeout": 2, "max_tokens": 1024}
+               "api_key": "dummy", "timeout": 2, "max_tokens": 1024, "temperature": 0.25}
         with patch.object(agent.request, "urlopen", return_value=FakeHTTP(
-            chat({"action": "patch", "rtl": self.new, "rationale": "hypothesis"})
+            chat({"action": "patch", "rtl": self.new, "rationale": "hypothesis"}, usage={
+                "prompt_tokens": 120, "completion_tokens": 80, "total_tokens": 200,
+            })
         )) as send:
             result = agent._call_model(cfg, agent._messages(self.payload, self.old))
         self.assertEqual(result["action"], "patch")
+        self.assertEqual(result["_provider_usage"]["total_tokens"], 200)
         req = send.call_args.args[0]
         self.assertEqual(json.loads(req.data)["model"], "fixture")
+        self.assertEqual(json.loads(req.data)["temperature"], 0.25)
         self.assertEqual(req.get_header("Authorization"), "Bearer dummy")
 
     def test_truncated_model_response_fails_closed(self):
         cfg = {"model": "fixture", "endpoint": "https://example.org/v1/chat/completions",
-               "api_key": "dummy", "timeout": 2, "max_tokens": 1024}
+               "api_key": "dummy", "timeout": 2, "max_tokens": 1024, "temperature": 0.0}
         with patch.object(agent.request, "urlopen", return_value=FakeHTTP(
             chat({"action": "patch", "rtl": self.new}, reason="length")
         )):
@@ -149,7 +168,7 @@ class LLMAgentTests(unittest.TestCase):
 
     def test_http_errors_do_not_expose_credentials(self):
         cfg = {"model": "fixture", "endpoint": "https://example.org/v1/chat/completions",
-               "api_key": "secret-token", "timeout": 2, "max_tokens": 1024}
+               "api_key": "secret-token", "timeout": 2, "max_tokens": 1024, "temperature": 0.0}
         with patch.object(agent.request, "urlopen", side_effect=HTTPError(
             cfg["endpoint"], 401, "secret-token", {}, io.BytesIO(b"secret-token")
         )):

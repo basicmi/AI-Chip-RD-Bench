@@ -94,12 +94,16 @@ def summarize(path: Path) -> dict:
     tokens = {key: 0 for key in COUNTERS}
     covered = {key: 0 for key in COUNTERS}
     models = set()
+    model_configs = []
     for item in iterations:
         if not isinstance(item, dict):
             raise ValueError("Each iteration must be an object")
         model = item.get("model_id")
         if isinstance(model, str):
             models.add(model)
+        config = item.get("model_config")
+        if isinstance(config, dict) and config not in model_configs:
+            model_configs.append(config)
         usage = item.get("usage")
         if usage is None:
             continue
@@ -130,6 +134,7 @@ def summarize(path: Path) -> dict:
         "run_status": report.get("status"),
         "stop_reason": report.get("stop_reason"),
         "model_ids": sorted(models),
+        "model_configs": model_configs,
         "run_environment": "not verified by this scorecard; inspect experiment manifests",
         "budget": report.get("budget"),
         "budget_consumed": report.get("budget_consumed"),
