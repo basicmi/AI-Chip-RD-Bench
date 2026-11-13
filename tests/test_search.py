@@ -84,6 +84,25 @@ class SearchTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unknown parent_id"):
                 load_proposals(pool, SearchBudget())
 
+    def test_rejects_reserved_candidate_ids(self):
+        pool = write_pool(self.root, [{
+            "candidate_id": "..", "candidate_path": "variant_a.sv",
+            "generation": 0,
+        }])
+        with patch("chiprd.search.ROOT", self.root):
+            with self.assertRaisesRegex(ValueError, "safe identifier"):
+                load_proposals(pool, SearchBudget())
+
+    def test_parent_must_be_from_immediately_preceding_generation(self):
+        pool = write_pool(self.root, [
+            {"candidate_id": "root", "candidate_path": "baseline.sv", "generation": 0},
+            {"candidate_id": "grandchild", "candidate_path": "variant_a.sv",
+             "parent_id": "root", "generation": 2},
+        ])
+        with patch("chiprd.search.ROOT", self.root):
+            with self.assertRaisesRegex(ValueError, "immediately preceding"):
+                load_proposals(pool, SearchBudget())
+
     def test_rejects_oversized_candidate(self):
         pool = write_pool(self.root, [self.baseline])
         with patch("chiprd.search.ROOT", self.root):

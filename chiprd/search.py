@@ -125,6 +125,7 @@ def load_proposals(path: Path, budget: SearchBudget) -> tuple[list[CandidateProp
         if (
             not isinstance(candidate_id, str)
             or not candidate_id
+            or candidate_id in {".", ".."}
             or len(candidate_id) > 64
             or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for ch in candidate_id)
         ):
