@@ -69,7 +69,7 @@ def _sta_netlist_text(yosys_verilog: str) -> str:
     This is safe only after tech mapping: combinational arithmetic has already
     been decomposed into standard cells and signedness cannot change cell wiring.
     """
-    return re.sub(r"\\b(input|output|wire)\\s+signed\\b", r"\\1", yosys_verilog)
+    return re.sub(r"\b(input|output|wire)\s+signed\b", r"\1", yosys_verilog)
 
 
 def _analyze_one(source: Path, liberty: Path, tech_lef: Path, cells_lef: Path,
