@@ -122,4 +122,5 @@ jobs:
             artifacts/search/
             artifacts/agent-patches/
             artifacts/agent-patch-experiment/
+            artifacts/agent-loops/
           if-no-files-found: warn
