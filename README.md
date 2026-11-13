@@ -65,7 +65,7 @@ A reproduction PASS means the normalized experiment results match under the same
 
 ### Simulation mutation campaign
 
-Five public RTL mutations are injected. The campaign passes only when the golden candidate passes and all five mutants are rejected by the independent functional evaluator. Tool/evaluator errors are not counted as kills.
+Five public source-pattern RTL mutations are defined. The candidate baseline must pass; every applicable mutant must be rejected by the independent functional evaluator. A mutation whose exact source pattern is absent is reported as `not_applicable`, excluded from the mutation-score denominator, and never counted as a kill. At least one mutation must be applicable, and any tool/evaluator error prevents a pass. Reports include both applicable coverage and mutation score so structurally different candidates are not silently credited with untested mutations.
 
 ### Formal protocol proof
 

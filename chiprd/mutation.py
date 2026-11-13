@@ -48,17 +48,26 @@ MUTATIONS = (
 )
 
 
+class MutationNotApplicable(ValueError):
+    """A source-pattern mutation does not apply to this RTL implementation."""
+
+
 def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
 def build_mutant(source: str, mutation: dict[str, str]) -> str:
-    """Apply one exact, unique source mutation; fail if the RTL has drifted."""
+    """Apply one exact, unique source mutation; distinguish N/A from source drift."""
     before = mutation["before"]
-    if source.count(before) != 1:
+    occurrences = source.count(before)
+    if occurrences == 0:
+        raise MutationNotApplicable(
+            f"Mutation {mutation['id']} has no matching source pattern"
+        )
+    if occurrences != 1:
         raise ValueError(
             f"Mutation {mutation['id']} expected exactly one occurrence of its target; "
-            f"found {source.count(before)}"
+            f"found {occurrences}"
         )
     return source.replace(before, mutation["after"], 1)
 
@@ -88,7 +97,7 @@ def run_mutations(candidate: Path, output: Path, seed: int = 20261112) -> dict:
         "oracle_sha256": sha256_bytes((ROOT / "chiprd" / "oracle.py").read_bytes()),
         "seed": seed,
         "mutation_ids": [item["id"] for item in MUTATIONS],
-        "evaluation_policy": "baseline must pass; every non-equivalent public mutant must fail functional verification",
+        "evaluation_policy": "baseline must pass; every applicable non-equivalent public mutant must fail functional verification; not-applicable mutations are reported and excluded from the score",
     }
     (output / "mutation_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -152,6 +161,13 @@ def run_mutations(candidate: Path, output: Path, seed: int = 20261112) -> dict:
                 "verification_reason": verification.get("reason"),
                 "verification": verification,
             }
+        except MutationNotApplicable as exc:
+            item = {
+                "id": mutation["id"],
+                "description": mutation["description"],
+                "outcome": "not_applicable",
+                "reason": str(exc),
+            }
         except Exception as exc:
             item = {
                 "id": mutation["id"],
@@ -164,16 +180,22 @@ def run_mutations(candidate: Path, output: Path, seed: int = 20261112) -> dict:
     total = len(report["mutations"])
     killed = sum(item["outcome"] == "killed" for item in report["mutations"])
     survived = sum(item["outcome"] == "survived" for item in report["mutations"])
+    not_applicable = sum(item["outcome"] == "not_applicable" for item in report["mutations"])
     errors = sum(item["outcome"] == "error" for item in report["mutations"])
+    applicable = killed + survived
     report["summary"] = {
         "total": total,
+        "applicable": applicable,
         "killed": killed,
         "survived": survived,
+        "not_applicable": not_applicable,
         "errors": errors,
     }
-    report["mutation_score"] = killed / total if total else 0.0
-    report["status"] = "pass" if killed == total and errors == 0 else (
-        "error" if errors else "fail"
+    report["mutation_score"] = killed / applicable if applicable else None
+    report["status"] = (
+        "pass" if applicable > 0 and killed == applicable and errors == 0
+        else "error" if errors or applicable == 0
+        else "fail"
     )
     (output / "mutation_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
