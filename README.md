@@ -4,26 +4,64 @@ A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
 ## Phase 0: CORDIC Golden Task
 
-This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, structured evidence and CI.
+This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, sealed experiment manifests, a JSONL experiment ledger and reproducibility checks.
 
 **Scope:** functional simulation, mutation sensitivity, protocol-level formal proof, cycle-accurate sequential equivalence and generic synthesis only. Generic cell count is not physical PPA. Formal numerical equivalence, latency-insensitive equivalence, private held-out tests, actual PDK/SDC/OpenROAD flows and Agent search remain future milestones.
 
 ### Quickstart (Ubuntu 22.04/24.04)
 
-```bash
-sudo apt-get update
-sudo apt-get install -y verilator yosys z3 git make python3
-python3 -m pip install click
-git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
-make -C /tmp/sby install PREFIX="$HOME/.local"
-export PATH="$HOME/.local/bin:$PATH"
+Install Verilator, Yosys, Z3, SymbiYosys and a compatible EQY toolchain. For a reproducible EQY/Yosys/SBY/Z3 environment, use the pinned OSS CAD Suite release recorded in CI.
 
+Run the individual checks:
+
+```bash
 python3 -m unittest discover -s tests -v
 python3 -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
 python3 -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
 python3 -m chiprd.cli formal --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal
 python3 -m chiprd.cli formal-negative-control --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal-negative-control
+python3 -m chiprd.cli equivalence-selftest --output artifacts/equivalence
 ```
+
+### Sealed end-to-end experiment
+
+The experiment command seals the candidate RTL once, then runs all public checks against that immutable snapshot:
+
+```bash
+python3 -m chiprd.cli experiment \
+  --candidate tasks/cordic/cordic_rotator.sv \
+  --output artifacts/experiment
+```
+
+It produces:
+
+- `sealed/candidate.sv`: read-only candidate snapshot.
+- `experiment_manifest.json`: candidate SHA-256, evaluator-input hashes, tool versions, Python/platform, seed, formal depth, equivalence semantics and command plan.
+- `experiment_ledger.jsonl`: append-only, hash-chained lifecycle events for sealing, check start/completion and finalization. Each event commits to the previous event; completed checks record the report path and SHA-256.
+- `experiment_report.json`: aggregate status, per-check report pointers and normalized result signature.
+- Per-check folders containing the original detailed logs, reports, partitions and counterexample traces.
+
+The unified experiment runs functional verification plus generic synthesis, simulation mutation, protocol formal proof, formal negative control, candidate-to-reference EQY, and the EQY positive/negative self-test. All candidate-specific checks use the same sealed candidate hash. The EQY harness self-test is a separate, fixed positive/negative fixture that validates the equivalence toolchain's ability to prove a behavior-preserving refactor and reject a deliberate mismatch. A missing tool, an inconclusive proof or a missing report fails closed; it is never silently counted as a pass.
+
+### Reproduce an experiment
+
+Use the original manifest as the reproduction contract:
+
+```bash
+python3 -m chiprd.cli reproduce \
+  --manifest artifacts/experiment/experiment_manifest.json \
+  --output artifacts/reproduced
+```
+
+Before rerunning, the reproducer verifies:
+1. The sealed candidate exists and its SHA-256 matches.
+2. Every evaluator input (RTL reference, testbench, oracle, formal harness, runners, task specification and package metadata) matches the original manifest.
+3. The required tool versions, Python version and platform match the original toolchain record.
+4. The hash-chained ledger is intact, its first event binds the original manifest hash, and its final event binds the experiment report and normalized result signature.
+
+If any precondition differs, reproduction is blocked and the mismatch is recorded; it does not quietly substitute the current evaluator. The ledger detects accidental edits, deletion, reordering or truncation of recorded events; it is tamper-evident, not a cryptographic signature from a trusted external authority. If preconditions match, the full experiment is rerun and normalized result signatures are compared. Timestamps, temporary directories and log paths are deliberately excluded from the result signature; functional outcomes, synthesis statistics, mutation outcomes and formal/equivalence proof statuses are included.
+
+A reproduction PASS means the normalized experiment results match under the same recorded evaluator inputs and tool versions. It does not mean the experiment is a secret test, an adversarial sandbox, a physical PPA sign-off or a silicon proof.
 
 ### Simulation mutation campaign
 
@@ -49,40 +87,14 @@ The self-test includes:
 - A structural CORDIC refactor that factors conditional add/subtract operations into signed delta terms while preserving state, interface and latency. It must prove equivalent.
 - A deliberately incorrect rotation-delta mutation. EQY must reject it.
 
-Run with an EQY/Yosys/SBY toolchain from the same OSS CAD Suite release (the CI uses the pinned 2026-11-12 suite):
-
-```bash
-# Activate a compatible OSS CAD Suite installation first:
-source /path/to/oss-cad-suite/environment
-
-python3 -m chiprd.cli equivalence-selftest --output artifacts/equivalence
-python3 -m chiprd.cli equivalence \
-  --reference tasks/cordic/cordic_rotator.sv \
-  --candidate path/to/candidate.sv \
-  --output artifacts/equivalence-candidate
-```
-
-The runner records gold/gate SHA-256, EQY/Yosys/SBY versions, EQY logs, partitions and counterexample traces. It reports a pass only for EQY's explicit `DONE (PASS, rc=0)` marker. The self-test passes only when the refactor proves equivalent **and** the faulty mutant is rejected.
-
 **Important boundary:** this is cycle-by-cycle sequential equivalence, not latency-insensitive equivalence. A pipeline retiming that changes externally visible response cycles may be functionally valid under a transaction-level specification but will not satisfy this strict contract. Such transformations need a separate latency/refinement checker rather than weakening the cycle-accurate result. EQY also does not replace the analytic numerical oracle or protocol-property proof.
 
-### Evidence
+### Evidence boundaries
 
-- `artifacts/ci/report.json`: candidate hash, tool versions, functional results and generic synthesis statistics.
-- `artifacts/mutation/`: sealed candidate snapshot, manifest, mutants and per-mutant logs.
-- `artifacts/formal/formal_report.json`: candidate/harness hashes, tool versions, proof mode/depth, properties and proof status.
-- `artifacts/formal-negative-control/`: baseline proof and deliberately failing mutant proof.
-- `artifacts/equivalence/`: positive/negative EQY reports, matched partitions, logs and traces.
-
-### Trust model
-
-The repository contains public tests, not secret hidden tests. The harness is not an adversarial sandbox; execute untrusted HDL only in isolated runners. No production PPA, complete formal functional proof, silicon measurement or tape-out assertion is made.
-
-### Planned next steps
-
-1. Strengthen randomized and boundary-focused validation plus private held-out evaluator design.
-2. Candidate sealing, evaluator manifests, schema validation and budget ledger.
-3. OpenROAD reproducible PPA on a fixed public platform and constraints.
-4. Model-independent Agent API and fixed-budget search baselines.
+- Generic cell count is not standard-cell area, timing or power.
+- Public mutation tests measure sensitivity to the listed mutations, not broad fault coverage.
+- The repository contains public tests, not secret hidden tests.
+- The harness is not an adversarial sandbox; execute untrusted HDL only in isolated runners.
+- No production PPA, complete formal functional proof, silicon measurement or tape-out assertion is made.
 
 See [CORDIC specification](tasks/cordic/spec.md).
