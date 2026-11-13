@@ -50,13 +50,17 @@ jobs:
             artifacts/formal-negative-control/
           if-no-files-found: warn
 
-  equivalence:
+  reproducible-experiment:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Download pinned OSS CAD Suite (EQY/Yosys/SBY toolchain)
+      - name: Install Verilator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+      - name: Download pinned OSS CAD Suite (EQY/Yosys/SBY/Z3 toolchain)
         run: |
           archive="$RUNNER_TEMP/oss-cad-suite.tgz"
           curl -L --fail --retry 3 \
@@ -64,18 +68,31 @@ jobs:
             -o "$archive"
           echo "346499255e3e5e6e9bf67e1d378a4e6bc249abd3de3b0caf5b57604bc8ba1752  $archive" | sha256sum -c -
           tar -xzf "$archive" -C "$RUNNER_TEMP"
-      - name: Run EQY positive refactor and negative control
+      - name: Run sealed end-to-end experiment
         shell: bash
         run: |
           source "$RUNNER_TEMP/oss-cad-suite/environment"
-          eqy --version
+          verilator --version
           yosys -V
+          eqy --version
           sby --version
-          python3 -m chiprd.cli equivalence-selftest --output artifacts/equivalence
-      - name: Upload equivalence evidence
+          z3 --version
+          python3 -m chiprd.cli experiment \
+            --candidate tasks/cordic/cordic_rotator.sv \
+            --output artifacts/experiment
+      - name: Reproduce experiment from its manifest
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli reproduce \
+            --manifest artifacts/experiment/experiment_manifest.json \
+            --output artifacts/reproduced
+      - name: Upload sealed experiment and reproduction evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: phase0-equivalence-evidence
-          path: artifacts/equivalence/
+          name: reproducible-experiment-evidence
+          path: |
+            artifacts/experiment/
+            artifacts/reproduced/
           if-no-files-found: warn
