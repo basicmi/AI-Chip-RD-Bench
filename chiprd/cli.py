@@ -21,7 +21,7 @@ def main() -> int:
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest"
     ])
-    parser.add_argument("--candidate", type=Path, default=ROOT / "tasks/cordic/cordic_rotator.sv")
+    parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
@@ -32,17 +32,17 @@ def main() -> int:
                           "first_vector": checks[0]}))
         return 0
     if args.mode == "mutation":
-        result = run_mutations(args.candidate, args.output, seed=args.seed)
+        result = run_mutations(candidate, args.output, seed=args.seed)
     elif args.mode == "formal":
-        result = run_formal(args.candidate, args.output)
+        result = run_formal(candidate, args.output)
     elif args.mode == "formal-negative-control":
-        result = run_formal_negative_control(args.candidate, args.output)
+        result = run_formal_negative_control(candidate, args.output)
     elif args.mode == "equivalence":
-        result = run_equivalence(args.reference, args.candidate, args.output)
+        result = run_equivalence(args.reference, candidate, args.output)
     elif args.mode == "equivalence-selftest":
         result = run_equivalence_selftest(args.reference, DEFAULT_REFACTOR, args.output)
     else:
-        result = run(args.candidate, args.output, mode=args.mode, seed=args.seed)
+        result = run(candidate, args.output, mode=args.mode, seed=args.seed)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["status"] == "pass" else 1
 

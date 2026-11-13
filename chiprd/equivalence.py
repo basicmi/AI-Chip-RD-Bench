@@ -37,7 +37,7 @@ def tool_version(executable: str, args: list[str]) -> str:
 
 
 def make_eqy_config() -> str:
-    """Cycle-accurate EQY setup with PDR; gold/gate share only their top-level contract."""
+    """Cycle-accurate EQY setup with PDR and automatic matching of stable state names."""
     return (
         "[gold]\n"
         "read_verilog -sv gold.sv\n"
