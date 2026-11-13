@@ -46,11 +46,11 @@ class LibertyMappingTests(unittest.TestCase):
     def test_same_library_area_comparison(self):
         results = iter([
             {"status": "pass", "source_sha256": "a" * 64,
-             "mapped_cell_count": 100, "mapped_cell_area": 120.0,
-             "cell_type_histogram": {"INV_X1": 100}, "yosys_version": "Yosys fixture"},
-            {"status": "pass", "source_sha256": "b" * 64,
              "mapped_cell_count": 110, "mapped_cell_area": 150.0,
              "cell_type_histogram": {"INV_X1": 110}, "yosys_version": "Yosys fixture"},
+            {"status": "pass", "source_sha256": "b" * 64,
+             "mapped_cell_count": 100, "mapped_cell_area": 120.0,
+             "cell_type_histogram": {"INV_X1": 100}, "yosys_version": "Yosys fixture"},
         ])
         with patch.object(ppa, "_map_one", side_effect=lambda *args: next(results)):
             report = ppa.compare_area(
