@@ -18,6 +18,9 @@ The example implementation is *not* a complete formal functional proof or produc
 
 - Verilator + analytic oracle: simulation-based numerical correctness on deterministic public vectors.
 - SymbiYosys: protocol properties (one-cycle completion pulse, no spurious completion, completion within 32 cycles, output-register stability) under the documented reset assumptions.
+- EQY: strict cycle-accurate sequential equivalence between a reference RTL and candidate RTL; it checks same-cycle output traces under common inputs. It is not latency-insensitive equivalence.
 - Yosys: generic synthesis only.
 
-The formal protocol proof does **not** prove trigonometric numerical equivalence, physical timing, area, power, CDC, reset recovery/removal, or silicon correctness. The resulting `generic_cell_count` is **not** cell area, frequency, power, physical closure, or sign-off.
+These checks answer different questions: the analytic oracle checks numerical accuracy; protocol formal checks control invariants; EQY checks whether a behavior-preserving RTL transformation retains the reference's cycle-by-cycle behavior. None of them alone proves production PPA or silicon correctness.
+
+The formal protocol proof does **not** prove trigonometric numerical equivalence, physical timing, area, power, CDC, reset recovery/removal, or silicon correctness. EQY does not replace the numerical oracle. The resulting `generic_cell_count` is **not** cell area, frequency, power, physical closure, or sign-off.

@@ -3,6 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from .equivalence import (
+    DEFAULT_REFACTOR,
+    DEFAULT_REFERENCE,
+    run_equivalence,
+    run_equivalence_selftest,
+)
 from .formal import run_formal, run_formal_negative_control
 from .harness import ROOT, run
 from .mutation import run_mutations
@@ -12,9 +18,11 @@ from .oracle import expected, vectors
 def main() -> int:
     parser = argparse.ArgumentParser(description="Evidence-gated CORDIC benchmark")
     parser.add_argument("mode", choices=[
-        "smoke", "verify", "synth", "all", "mutation", "formal", "formal-negative-control"
+        "smoke", "verify", "synth", "all", "mutation", "formal",
+        "formal-negative-control", "equivalence", "equivalence-selftest"
     ])
     parser.add_argument("--candidate", type=Path, default=ROOT / "tasks/cordic/cordic_rotator.sv")
+    parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
@@ -29,6 +37,10 @@ def main() -> int:
         result = run_formal(args.candidate, args.output)
     elif args.mode == "formal-negative-control":
         result = run_formal_negative_control(args.candidate, args.output)
+    elif args.mode == "equivalence":
+        result = run_equivalence(args.reference, args.candidate, args.output)
+    elif args.mode == "equivalence-selftest":
+        result = run_equivalence_selftest(args.reference, DEFAULT_REFACTOR, args.output)
     else:
         result = run(args.candidate, args.output, mode=args.mode, seed=args.seed)
     print(json.dumps(result, indent=2, sort_keys=True))

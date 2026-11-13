@@ -27,13 +27,17 @@ jobs:
       - name: Run Python unit tests
         run: python -m unittest discover -s tests -v
       - name: Verify and synthesize CORDIC candidate
-        run: python -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
+        run: |
+          python -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
       - name: Run simulation mutation sensitivity campaign
-        run: python -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
+        run: |
+          python -m chiprd.cli mutation --candidate tasks/cordic/cordic_rotator.sv --output artifacts/mutation
       - name: Prove CORDIC protocol properties
-        run: python -m chiprd.cli formal --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal
+        run: |
+          python -m chiprd.cli formal --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal
       - name: Run formal negative control
-        run: python -m chiprd.cli formal-negative-control --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal-negative-control
+        run: |
+          python -m chiprd.cli formal-negative-control --candidate tasks/cordic/cordic_rotator.sv --output artifacts/formal-negative-control
       - name: Upload evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,4 +48,34 @@ jobs:
             artifacts/mutation/
             artifacts/formal/
             artifacts/formal-negative-control/
+          if-no-files-found: warn
+
+  equivalence:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned OSS CAD Suite (EQY/Yosys/SBY toolchain)
+        run: |
+          archive="$RUNNER_TEMP/oss-cad-suite.tgz"
+          curl -L --fail --retry 3 \
+            https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-11-12/oss-cad-suite-linux-x64-20261112.tgz \
+            -o "$archive"
+          echo "346499255e3e5e6e9bf67e1d378a4e6bc249abd3de3b0caf5b57604bc8ba1752  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+      - name: Run EQY positive refactor and negative control
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          eqy --version
+          yosys -V
+          sby --version
+          python3 -m chiprd.cli equivalence-selftest --output artifacts/equivalence
+      - name: Upload equivalence evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-equivalence-evidence
+          path: artifacts/equivalence/
           if-no-files-found: warn
