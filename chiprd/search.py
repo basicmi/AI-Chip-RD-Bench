@@ -416,6 +416,11 @@ def run_search(
             previous.sort(key=lambda item: (item["fitness"], item["candidate_id"]), reverse=True)
             if not previous:
                 eligible = []
+                for item in current:
+                    skipped.append({
+                        "candidate_id": item.candidate_id,
+                        "reason": "parent_not_selected_or_not_feasible",
+                    })
             else:
                 elite_count = max(
                     1, math.ceil(len(previous) * budget.elite_parent_fraction)
