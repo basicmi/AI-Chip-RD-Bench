@@ -97,7 +97,7 @@ def _analyze_one(source: Path, liberty: Path, tech_lef: Path, cells_lef: Path,
             "read_verilog mapped.v\n"
             f"link_design {ppa.TOP}\n"
             "read_sdc constraints.sdc\n"
-            "report_checks -path_delay max -group_path_count 5 -digits 4\n"
+            "report_checks -path_delay max -digits 4\n"
             "report_worst_slack -max -digits 6\n"
             "puts \"CHIPRD_WNS_NS [sta::worst_slack -max]\"\n"
         )
