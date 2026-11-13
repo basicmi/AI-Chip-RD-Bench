@@ -165,7 +165,8 @@ class EvidenceTests(unittest.TestCase):
                 run_experiment(CANDIDATE, root)
             ledger = root / "experiment_ledger.jsonl"
             lines = ledger.read_text().splitlines()
-            lines[2] = lines[2].replace("candidate_sealed", "candidate_tampered")
+            self.assertIn("candidate_sealed", lines[1])
+            lines[1] = lines[1].replace("candidate_sealed", "candidate_tampered")
             ledger.write_text("\n".join(lines) + "\n")
             self.assertFalse(verify_ledger(ledger)["valid"])
             with patch("chiprd.evidence.collect_toolchain", return_value=TOOLS):
