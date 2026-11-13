@@ -268,6 +268,22 @@ Aggregate mean, median, range and sample standard deviation are descriptive summ
 
 **Cost and privacy:** a campaign makes real model calls through the configured Agent. The maximum planned call count is `runs × max_iterations`, plus each run's baseline/candidate EDA work. Review provider billing and data-sharing terms before running. GitHub CI uses the deterministic mock Agent only; it does not call a live model.
 
+### Post-selection numerical audit (Phase 11)
+
+After an Agent run or campaign has **finished and frozen its best candidate**, run a separate numerical audit. The auditor reads the selected candidate from the archived loop report, requires a uniquely matched **passing and feasible** experiment, verifies its current RTL SHA-256, and tests it with a newly chosen oracle seed. It does not call an Agent or feed the resulting pass/fail status back into the search controller.
+
+```bash
+python3 -m chiprd.cli audit \
+  --loop-report artifacts/agent-campaigns/local-model-repeat-01/runs/run-001/agent_loop_report.json \
+  --audit-seed 991977 \
+  --audit-vectors 128 \
+  --output artifacts/post-selection-audit/model-run-001
+```
+
+The auditor can also check an explicitly supplied candidate with `--candidate path/to/candidate.sv` instead of `--loop-report`. The source path must stay inside the repository, and an existing audit directory is never overwritten. Verilator checks 128 vectors by default using the independent analytic math oracle, including fixed boundary cases plus seed-derived inputs. The report records hashes, seed, tool versions, tested/received counts, failures and whether the candidate was selected from archived loop evidence. Compilation or missing tools fail closed.
+
+**Evidence boundary:** This is *post-selection independent-seed validation*, not a secret held-out test. The implementation, public testbench, analytic oracle and CI example seed are visible in the repository. To claim truly private held-out verification, run an evaluator isolated from the Agent using independently controlled, undisclosed seeds/tests and access controls. A sample-based numerical audit does not prove full functionality or timing/PPA closure.
+
 ### Evidence boundaries
 
 - Generic cell count is not standard-cell area, timing or power.

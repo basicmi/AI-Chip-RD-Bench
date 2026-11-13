@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from .agent_loop import AgentLoopBudget, parse_agent_command, run_agent_loop
 from .agent_campaign import run_agent_campaign
+from .audit import audit_candidate
 from .equivalence import (
     DEFAULT_REFACTOR,
     DEFAULT_REFERENCE,
@@ -25,11 +26,14 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
     parser.add_argument("--manifest", type=Path, default=None)
+    parser.add_argument("--loop-report", type=Path, default=None)
+    parser.add_argument("--audit-seed", type=int, default=None)
+    parser.add_argument("--audit-vectors", type=int, default=128)
     parser.add_argument("--proposals", type=Path, default=None)
     parser.add_argument("--patch-proposal", type=Path, default=None)
     parser.add_argument("--agent-command-json", type=str, default=None)
@@ -47,7 +51,20 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
-    if args.mode == "reproduce":
+    if args.mode == "audit":
+        if args.audit_seed is None:
+            parser.error("audit requires an independently chosen --audit-seed")
+        if args.loop_report is not None and args.candidate is not None:
+            parser.error("audit accepts --candidate or --loop-report, not both")
+        if args.loop_report is None and args.candidate is None:
+            parser.error("audit requires --candidate or --loop-report")
+        result = audit_candidate(
+            args.candidate, args.output,
+            audit_seed=args.audit_seed,
+            count=args.audit_vectors,
+            loop_report=args.loop_report,
+        )
+    elif args.mode == "reproduce":
         if args.manifest is None:
             parser.error("reproduce requires --manifest")
         result = reproduce_experiment(args.manifest, args.output)

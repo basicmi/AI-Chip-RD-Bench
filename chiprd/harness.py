@@ -55,11 +55,11 @@ def base_report(candidate: Path, kind: str) -> dict:
     }
 
 
-def verify(candidate: Path, output: Path, seed: int = 20261112) -> dict:
+def verify(candidate: Path, output: Path, seed: int = 20261112, count: int = 24) -> dict:
     tool = shutil.which("verilator")
     if not tool:
         raise RuntimeError("Verilator unavailable; verification NOT run")
-    test_angles = vectors(seed=seed)
+    test_angles = vectors(seed=seed, count=count)
     report = base_report(candidate, "functional")
     report.update(tool="verilator", tool_version=tool_version("verilator"),
                   testbench_sha256=hash_file(TESTBENCH), seed=seed,
