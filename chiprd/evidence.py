@@ -405,11 +405,15 @@ def run_experiment(candidate: Path, output: Path, seed: int = 20261112) -> dict:
 
     signatures = result_signature(check_results)
     status = _aggregate_status(check_results)
+    candidate_snapshot_intact = sha256_file(snapshot) == candidate_hash
+    if not candidate_snapshot_intact:
+        status = "error"
     report = {
         "report_schema_version": "1.0.0",
         "experiment_id": experiment_id,
         "task_id": manifest["task_id"],
         "candidate_sha256": candidate_hash,
+        "candidate_snapshot_intact": candidate_snapshot_intact,
         "status": status,
         "checks": {
             name: {
@@ -436,7 +440,7 @@ def run_experiment(candidate: Path, output: Path, seed: int = 20261112) -> dict:
         "manifest_path": str(manifest_path),
         "report_path": str(report_path),
         "ledger_path": str(ledger_path),
-        "candidate_snapshot_intact": sha256_file(snapshot) == candidate_hash,
+        "candidate_snapshot_intact": candidate_snapshot_intact,
     }
 
 
