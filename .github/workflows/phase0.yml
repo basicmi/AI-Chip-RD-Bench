@@ -173,6 +173,17 @@ jobs:
             --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
             --platform-label nangate45-reference \
             --output artifacts/ppa/nangate45
+      - name: Install standalone OpenROAD STA engine
+        shell: bash
+        run: |
+          deb="$RUNNER_TEMP/openroad.deb"
+          curl -L --fail --retry 3 \
+            https://github.com/Precision-Innovations/OpenROAD/releases/download/2024-12-14/openroad_2.0-17598-ga008522d8_amd64-ubuntu-22.04.deb \
+            -o "$deb"
+          sha256sum "$deb"
+          sudo apt-get update
+          sudo apt-get install -y "$deb"
+          openroad -version
       - name: Download pinned Nangate45 technology and cell LEFs
         shell: bash
         run: |

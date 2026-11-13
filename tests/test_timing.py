@@ -107,7 +107,6 @@ class TimingTests(unittest.TestCase):
         folder = self.root / "mapped"
         with patch.object(timing.ppa, "_map_one", return_value={"mapped_cell_area": 12.0}):
             with patch.object(timing.shutil, "which", return_value=None):
-                folder.mkdir()
                 with self.assertRaisesRegex(RuntimeError, "OpenROAD unavailable"):
                     timing._analyze_one(self.candidate, self.liberty, self.tech,
                                         self.cells, folder, "create_clock ...", {"INV_X1"})
