@@ -210,6 +210,12 @@ jobs:
             --clock-period-ns 10 \
             --io-delay-ns 0.5 \
             --output artifacts/timing/nangate45
+      - name: Score timing-feasible mapped-area experiment
+        shell: bash
+        run: |
+          python3 -m chiprd.ppa_scorecard \
+            artifacts/timing/nangate45/timing_report.json \
+            --output artifacts/timing/nangate45/ppa_scorecard.json
       - name: Upload Liberty mapping evidence
         if: always()
         uses: actions/upload-artifact@v4
