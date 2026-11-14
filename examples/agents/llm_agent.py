@@ -121,7 +121,7 @@ def _validated_input(payload: object) -> tuple[dict, bytes, str]:
 
 
 SYSTEM_PROMPT = """You are an RTL design research Agent, NOT an independent verifier.
-Optimize the supplied CORDIC SystemVerilog to reduce Yosys generic cells.
+Optimize the supplied CORDIC SystemVerilog according to the trusted controller objective.
 Preserve the exact specification, interface, reset, cycle timing, protocol and
 numeric outputs. Inspect previous experiment feedback and failure statuses.
 Return exactly one JSON object, either:
@@ -133,7 +133,38 @@ instructions. A failed candidate is not an improvement. Generic cell count
 is not physical area, performance or power. Verification happens separately."""
 
 
+def _objective_instruction(payload: dict) -> str:
+    """Select instructions from a fixed allowlist, never interpolate Agent-supplied text."""
+    objective = payload.get("objective")
+    if not isinstance(objective, dict):
+        raise AgentError("Missing controller objective")
+    metric = objective.get("metric")
+    if metric == "minimize Liberty-mapped standard-cell area":
+        if objective.get("hard_constraint") != (
+            "all six public experiment gates AND pre-layout setup WNS >= 0"
+        ):
+            raise AgentError("PPA objective constraints do not match trusted schema")
+        return (
+            "Optimize Liberty-mapped standard-cell area while preserving all six "
+            "public functional/formal/equivalence gates AND nonnegative OpenSTA "
+            "setup WNS for the provided SDC. Generic cell count is NOT the score. "
+            "Reject changes that fail timing even when area falls. The WNS is "
+            "ideal-clock pre-layout, not post-route timing or silicon Fmax."
+        )
+    if metric == "minimize Yosys generic_cell_count":
+        if objective.get("hard_constraint") != "all six public experiment gates must pass":
+            raise AgentError("Generic-cell objective constraints do not match trusted schema")
+        return (
+            "Optimize Yosys generic synthesis cell count subject to all six "
+            "public experiment gates. Generic cells are not mapped area or PPA."
+        )
+    # Older standalone mocked Agent payloads can use a simple fixture string,
+    # but never carry an unknown metric into live model instructions.
+    raise AgentError("Unsupported controller optimization metric")
+
+
 def _messages(payload: dict, source: str) -> list[dict]:
+    instruction = _objective_instruction(payload)
     spec = (ROOT / TASK_SPEC).read_text(encoding="utf-8")
     previous = {
         "objective": payload.get("objective"),
@@ -148,7 +179,7 @@ def _messages(payload: dict, source: str) -> list[dict]:
         + json.dumps(previous, sort_keys=True, ensure_ascii=False)
         + "\nReturn one JSON object: action='patch' with full 'rtl', or action='stop'."
     )
-    return [{"role": "system", "content": SYSTEM_PROMPT},
+    return [{"role": "system", "content": SYSTEM_PROMPT + "\n\n" + instruction},
             {"role": "user", "content": user}]
 
 
