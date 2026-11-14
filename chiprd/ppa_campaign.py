@@ -183,6 +183,13 @@ def run_ppa_campaign(command, output: Path, objective: PPAObjective, *,
             "note": "Environment credentials are not captured; Agent outputs may contain sensitive text",
         },
         "controller_sha256": _sha_file(Path(__file__)),
+        "evaluator_fingerprints": {
+            "agent_loop_sha256": _sha_file(Path(__import__("chiprd.agent_loop", fromlist=["__file__"]).__file__)),
+            "agent_ppa_sha256": _sha_file(Path(__import__("chiprd.agent_ppa", fromlist=["__file__"]).__file__)),
+            "timing_sha256": _sha_file(Path(__import__("chiprd.timing", fromlist=["__file__"]).__file__)),
+            "ppa_scorecard_sha256": _sha_file(Path(__import__("chiprd.ppa_scorecard", fromlist=["__file__"]).__file__)),
+            "sealed_evidence_sha256": _sha_file(Path(__import__("chiprd.evidence", fromlist=["__file__"]).__file__)),
+        },
     }
     output.mkdir(parents=True)
     manifest_path = output / "campaign_manifest.json"
