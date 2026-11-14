@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from .agent_loop import AgentLoopBudget, parse_agent_command, run_agent_loop
 from .agent_campaign import run_agent_campaign
+from .ppa_campaign import run_ppa_campaign
 from .audit import audit_candidate
 from .equivalence import (
     DEFAULT_REFACTOR,
@@ -28,7 +29,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit", "ppa", "timing",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -113,7 +114,7 @@ def main() -> int:
         if args.patch_proposal is None:
             parser.error("apply-patch requires --patch-proposal")
         result = apply_patch_proposal(args.patch_proposal, args.output)
-    elif args.mode in {"agent-loop", "agent-campaign"}:
+    elif args.mode in {"agent-loop", "agent-campaign", "ppa-campaign"}:
         if args.agent_command_json is None:
             parser.error(f"{args.mode} requires --agent-command-json")
         try:
@@ -131,6 +132,17 @@ def main() -> int:
             result = run_agent_loop(
                 agent_command, args.output, budget=budget,
                 seed=args.seed, loop_id=args.loop_id,
+            )
+        elif args.mode == "ppa-campaign":
+            if not all((args.liberty, args.tech_lef, args.cells_lef)):
+                parser.error("ppa-campaign requires --liberty, --tech-lef, --cells-lef")
+            from .agent_ppa import PPAObjective
+            objective = PPAObjective(args.liberty, args.tech_lef, args.cells_lef,
+                                     args.clock_period_ns, args.io_delay_ns)
+            result = run_ppa_campaign(
+                agent_command, args.output, objective,
+                runs=args.runs, budget=budget, seed=args.seed,
+                campaign_id=args.campaign_id or args.loop_id,
             )
         else:
             result = run_agent_campaign(
