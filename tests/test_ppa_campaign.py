@@ -80,7 +80,7 @@ class CampaignTests(unittest.TestCase):
             campaign._evidence(payload)
         payload = loop_report()
         payload["experiments"][1]["feasible"] = False
-        with self.assertRaisesRegex(ValueError, "Selected candidate"):
+        with self.assertRaisesRegex(ValueError, "PPA feasible without valid status"):
             campaign._evidence(payload)
         payload = loop_report()
         payload["improved_vs_baseline"] = False
