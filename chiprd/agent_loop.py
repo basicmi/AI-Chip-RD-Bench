@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_ppa import PPAObjective
 from .harness import ROOT
 from .patches import PATCH_TARGET_PATH, apply_patch_proposal
 from .search import _metrics, _run_sealed_experiment
@@ -308,6 +309,7 @@ def run_agent_loop(
     budget: AgentLoopBudget | None = None,
     seed: int = 20261113,
     loop_id: str | None = None,
+    ppa_objective: PPAObjective | None = None,
 ) -> dict:
     """Evaluate a baseline, solicit Agent patches, and feed each result back."""
     if (not isinstance(command, list) or not command
@@ -315,6 +317,7 @@ def run_agent_loop(
         raise ValueError("command must be a non-empty argv list")
     budget = budget or AgentLoopBudget()
     budget.validate()
+    ppa_settings = ppa_objective.validate() if ppa_objective is not None else None
     loop_id = _safe_id(
         loop_id or datetime.now(timezone.utc).strftime("loop-%Y%m%dT%H%M%S%fZ"),
         "loop_id",
@@ -359,6 +362,11 @@ def run_agent_loop(
             "hard_constraint": "all six public experiment gates must pass",
             "metric": "minimize Yosys generic_cell_count",
             "metric_boundary": "generic synthesis proxy only; not physical PPA",
+        } if ppa_objective is None else {
+            "hard_constraint": "all six public experiment gates AND pre-layout setup WNS >= 0",
+            "metric": "minimize Liberty-mapped standard-cell area",
+            "metric_boundary": "pre-layout ideal-clock STA; not physical signoff",
+            "ppa_configuration": ppa_settings,
         },
         "controller_sha256": _sha_file(Path(__file__).resolve()),
     }
@@ -385,6 +393,23 @@ def run_agent_loop(
     baseline_record = _execution_record(
         "baseline", baseline, baseline_hash, baseline_dir, baseline_execution
     )
+    def ppa_evidence(candidate_path: Path, candidate_record: dict, label: str) -> dict | None:
+        if ppa_objective is None:
+            return None
+        if not candidate_record["feasible"]:
+            return {"status": "skipped", "feasible": False,
+                    "error": "sealed functional/formal gates not passed"}
+        if time.monotonic() >= deadline:
+            return {"status": "error", "feasible": False,
+                    "error": "wall-clock budget exhausted before PPA"}
+        return ppa_objective.evaluate(
+            candidate_path, baseline, output / "ppa" / label
+        )
+
+    baseline_ppa = ppa_evidence(baseline, baseline_record, "baseline")
+    if baseline_ppa is not None:
+        baseline_record["ppa"] = baseline_ppa
+        baseline_record["feedback"]["ppa"] = baseline_ppa
     _append_event(ledger_path, "baseline_experiment_completed",
                   status=baseline_record["status"], feasible=baseline_record["feasible"],
                   candidate_sha256=baseline_hash,
@@ -393,10 +418,16 @@ def run_agent_loop(
 
     parent = {"candidate_id": "baseline", "candidate_path": baseline_rel,
               "candidate_sha256": baseline_hash, "generation": 0}
+    baseline_selectable = baseline_record["feasible"] and (
+        ppa_objective is None or (baseline_ppa is not None and baseline_ppa["feasible"])
+    )
     best = ({"candidate_id": "baseline", "candidate_path": baseline_rel,
              "candidate_sha256": baseline_hash, "generation": 0,
-             "generic_cell_count": baseline_record["generic_cell_count"]}
-            if baseline_record["feasible"] else None)
+             "generic_cell_count": baseline_record["generic_cell_count"],
+             **({"mapped_cell_area": baseline_ppa["mapped_cell_area"],
+                 "worst_setup_slack_ns": baseline_ppa["worst_setup_slack_ns"]}
+                if ppa_objective is not None else {})}
+            if baseline_selectable else None)
     previous_experiment = baseline_record["feedback"]
     previous_iteration = None
     iterations, experiments = [], [baseline_record]
@@ -558,16 +589,27 @@ def run_agent_loop(
         record = _execution_record(patch["patch_id"], candidate, candidate_hash,
                                    exp_dir, execution)
         experiments.append(record)
+        candidate_ppa = ppa_evidence(candidate, record, f"iteration-{number:03d}")
+        if candidate_ppa is not None:
+            record["ppa"] = candidate_ppa
+            record["feedback"]["ppa"] = candidate_ppa
         item["experiment"] = record["feedback"]
         item["status"] = "evaluated" if record["status"] in {"pass", "fail"} else record["status"]
-        if record["feasible"]:
+        selectable = record["feasible"] and (
+            ppa_objective is None or (candidate_ppa is not None and candidate_ppa["feasible"])
+        )
+        if selectable:
             candidate_best = {
                 "candidate_id": patch["patch_id"], "candidate_path": candidate_rel,
                 "candidate_sha256": candidate_hash,
                 "generation": parent["generation"] + 1,
                 "generic_cell_count": record["generic_cell_count"],
+                **({"mapped_cell_area": candidate_ppa["mapped_cell_area"],
+                    "worst_setup_slack_ns": candidate_ppa["worst_setup_slack_ns"]}
+                   if ppa_objective is not None else {}),
             }
-            if best is None or candidate_best["generic_cell_count"] < best["generic_cell_count"]:
+            metric = "mapped_cell_area" if ppa_objective is not None else "generic_cell_count"
+            if best is None or candidate_best[metric] < best[metric]:
                 best = candidate_best
         if baseline_record["feasible"] and baseline_record["generic_cell_count"] > 0:
             item["improvement_vs_baseline_percent"] = round(
@@ -608,6 +650,7 @@ def run_agent_loop(
         "stop_reason": stop_reason,
         "elapsed_seconds": elapsed,
         "budget": asdict(budget),
+        "objective_mode": "timing_constrained_mapped_area" if ppa_objective else "generic_cells",
         "budget_consumed": {
             "agent_iterations": len(iterations),
             "candidate_experiments": len(experiments),
@@ -617,11 +660,14 @@ def run_agent_loop(
             "candidate_id": "baseline", "candidate_sha256": baseline_hash,
             "status": baseline_record["status"], "feasible": baseline_record["feasible"],
             "generic_cell_count": baseline_record["generic_cell_count"],
+            **({"ppa": baseline_ppa} if ppa_objective else {}),
         },
         "best_candidate": best,
         "improved_vs_baseline": bool(
-            best and best["candidate_id"] != "baseline" and baseline_record["feasible"]
-            and best["generic_cell_count"] < baseline_record["generic_cell_count"]
+            best and best["candidate_id"] != "baseline" and baseline_selectable
+            and ((best["mapped_cell_area"] < baseline_ppa["mapped_cell_area"])
+                 if ppa_objective else
+                 (best["generic_cell_count"] < baseline_record["generic_cell_count"]))
         ),
         "iterations": iterations,
         "experiments": [{
@@ -630,6 +676,7 @@ def run_agent_loop(
             "status": record["status"], "feasible": record["feasible"],
             "generic_cell_count": record["generic_cell_count"],
             "gate_statuses": record["gate_statuses"],
+            **({"ppa": record.get("ppa")} if ppa_objective else {}),
             "experiment_directory": record["experiment_directory"],
         } for record in experiments],
         "manifest_path": manifest_path.relative_to(root).as_posix(),
