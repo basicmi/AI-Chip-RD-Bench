@@ -15,6 +15,7 @@ from .agent_loop import AgentLoopBudget
 from .agent_ppa import PPAObjective
 from .harness import ROOT
 from .model_comparison import compare_campaigns
+from .model_probe import probe_configured_models
 from .pilot_preflight import assess
 from .ppa_campaign import run_ppa_campaign
 
@@ -61,8 +62,11 @@ def _preflight_for_model(model: str, objective: PPAObjective) -> dict:
 
 
 def pilot(models, output_root: Path, pilot_id: str, objective: PPAObjective, *,
-          execute=False, runs=3, budget=None, seed=20261113):
+          execute=False, runs=3, budget=None, seed=20261113,
+          skip_model_probe=False):
     names = _models(models)
+    if type(skip_model_probe) is not bool:
+        raise ValueError("skip_model_probe must be boolean")
     if type(execute) is not bool:
         raise ValueError("execute must be a boolean")
     if isinstance(runs, bool) or not isinstance(runs, int) or not 1 <= runs <= 20:
@@ -89,31 +93,58 @@ def pilot(models, output_root: Path, pilot_id: str, objective: PPAObjective, *,
     if not all(row["local_configuration_ready"] for row in preflights):
         return {**public, "status": "blocked_by_preflight",
                 "started_model_campaigns": 0}
+    # Before any paid/inference work, perform a bounded GET /models for both IDs.
+    # Providers without this endpoint require an explicit opt-out.
+    discovery = None
+    if not skip_model_probe:
+        try:
+            discovery = probe_configured_models(names)
+        except (OSError, ValueError, ImportError, TypeError) as exc:
+            discovery = {"status": "fail", "reason": "probe_error",
+                         "error_type": type(exc).__name__, "completion_calls": 0}
+        if discovery.get("status") != "pass":
+            return {**public, "status": "blocked_by_model_probe",
+                    "model_probe": discovery, "started_model_campaigns": 0}
     # Repeat no-overwrite check immediately before any campaign is launched.
     if destination.exists() or destination.is_symlink():
         raise FileExistsError("Pilot output was created between preflight and execution")
     destination.mkdir(parents=True)
+    public["model_probe"] = discovery if discovery is not None else {
+        "status": "skipped_by_explicit_opt_out", "completion_calls": 0}
     (destination / "preflight.json").write_text(
         json.dumps(public, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     original = os.environ.get("CHIPRD_LLM_MODEL")
     folders = []
     completed = []
+    attempted = 0
+    def checkpoint():
+        # Preserve progress even if a later model run fails or execution is interrupted.
+        (destination / "pilot_progress.json").write_text(json.dumps({
+            "schema_version": "1.0.0", "pilot_id": pilot_id,
+            "attempted_model_campaigns": attempted, "campaigns": completed,
+            "state": "running", "comparison_ready": False,
+        }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    checkpoint()
     try:
         for index, model in enumerate(names):
             os.environ["CHIPRD_LLM_MODEL"] = model
             campaign_id = f"{pilot_id}-m{index+1}"
             folder = destination / f"model-{index+1}"
             try:
+                attempted += 1
+                checkpoint()
                 run_ppa_campaign(
                     AGENT_COMMAND, folder, objective, runs=runs,
                     budget=budget, seed=seed, campaign_id=campaign_id
                 )
                 folders.append(folder)
                 completed.append({"index": index + 1, "state": "finished"})
+                checkpoint()
             except Exception as exc:
                 # Errors may contain provider response data or credentials.
                 completed.append({"index": index + 1, "state": "error",
                                   "error_type": type(exc).__name__})
+                checkpoint()
                 break
     finally:
         if original is None:
@@ -135,7 +166,7 @@ def pilot(models, output_root: Path, pilot_id: str, objective: PPAObjective, *,
             "completed" if comparison and comparison["comparison_ready"]
             else "partial"
         ),
-        "started_model_campaigns": len(completed),
+        "started_model_campaigns": attempted,
         "campaigns": completed,
         "comparison_ready": bool(comparison and comparison["comparison_ready"]),
         "comparison_file": (
@@ -146,6 +177,7 @@ def pilot(models, output_root: Path, pilot_id: str, objective: PPAObjective, *,
     }
     (destination / "pilot_report.json").write_text(
         json.dumps(final, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (destination / "pilot_progress.json").unlink(missing_ok=True)
     return final
 
 
@@ -166,6 +198,8 @@ def main(argv=None):
     parser.add_argument("--max-experiment-seconds", type=float, default=600)
     parser.add_argument("--max-wall-clock-seconds", type=float, default=3600)
     parser.add_argument("--seed", type=int, default=20261113)
+    parser.add_argument("--skip-model-probe", action="store_true",
+                        help="explicit opt-out for providers without GET /models")
     parser.add_argument("--execute", action="store_true",
                         help="explicitly allow live model calls and EDA experiments")
     args = parser.parse_args(argv)
@@ -175,6 +209,7 @@ def main(argv=None):
             PPAObjective(args.liberty, args.tech_lef, args.cells_lef,
                          args.clock_period_ns, args.io_delay_ns),
             execute=args.execute, runs=args.runs, seed=args.seed,
+            skip_model_probe=args.skip_model_probe,
             budget=AgentLoopBudget(
                 max_iterations=args.max_iterations,
                 max_agent_seconds=args.max_agent_seconds,
