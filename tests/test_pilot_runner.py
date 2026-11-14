@@ -67,7 +67,8 @@ class PilotRunnerTests(unittest.TestCase):
             with patch.dict(os.environ, {"CHIPRD_LLM_MODEL": "original"}):
                 report = pilot.pilot(
                     ["model-a", "model-b"], self.root / "artifacts", "test-pilot",
-                    self.objective, execute=True, runs=3, seed=42)
+                    self.objective, execute=True, runs=3, seed=42,
+                    skip_model_probe=True)
                 self.assertEqual(os.environ["CHIPRD_LLM_MODEL"], "original")
         self.assertEqual(report["status"], "completed")
         self.assertTrue(report["comparison_ready"])
@@ -87,12 +88,43 @@ class PilotRunnerTests(unittest.TestCase):
             pilot, "compare_campaigns") as compare:
             result = pilot.pilot(
                 ["model-a", "model-b"], self.root / "artifacts", "test-pilot",
-                self.objective, execute=True)
+                self.objective, execute=True, skip_model_probe=True)
         self.assertEqual(result["status"], "partial")
         self.assertEqual(result["campaigns"][0]["error_type"], "RuntimeError")
         self.assertNotIn("PROVIDER_SECRET", json.dumps(result))
         self.assertEqual(run.call_count, 1)
         compare.assert_not_called()
+
+    def test_model_probe_rejects_before_campaign_start(self):
+        with patch.object(pilot, "ROOT", self.root), patch.object(
+            pilot, "assess", return_value=self.ready
+        ), patch.object(pilot, "probe_configured_models", return_value={
+            "status": "fail", "reason": "models_not_listed",
+            "missing_model_ids": ["model-b"], "completion_calls": 0,
+        }) as probe, patch.object(pilot, "run_ppa_campaign") as run:
+            result = pilot.pilot(
+                ["model-a", "model-b"], self.root / "artifacts",
+                "test-pilot", self.objective, execute=True)
+        self.assertEqual(result["status"], "blocked_by_model_probe")
+        self.assertEqual(result["started_model_campaigns"], 0)
+        probe.assert_called_once_with(["model-a", "model-b"])
+        run.assert_not_called()
+        self.assertFalse((self.root / "artifacts/test-pilot").exists())
+
+    def test_partial_campaign_keeps_checkpoint_until_terminal_report(self):
+        def fail(*args, **kwargs):
+            raise RuntimeError("secret provider message")
+        with patch.object(pilot, "ROOT", self.root), patch.object(
+            pilot, "assess", return_value=self.ready
+        ), patch.object(pilot, "run_ppa_campaign", side_effect=fail):
+            result = pilot.pilot(
+                ["model-a", "model-b"], self.root / "artifacts", "test-pilot",
+                self.objective, execute=True, skip_model_probe=True)
+        folder = self.root / "artifacts/test-pilot"
+        self.assertEqual(result["started_model_campaigns"], 1)
+        self.assertTrue((folder / "pilot_report.json").is_file())
+        self.assertFalse((folder / "pilot_progress.json").exists())
+        self.assertNotIn("secret provider message", (folder / "pilot_report.json").read_text())
 
     def test_rejects_duplicate_model_and_reused_output(self):
         with patch.object(pilot, "ROOT", self.root):
