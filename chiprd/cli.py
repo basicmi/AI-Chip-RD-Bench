@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 from .agent_loop import AgentLoopBudget, parse_agent_command, run_agent_loop
+from .agent_ppa import PPAObjective
 from .agent_campaign import run_agent_campaign
 from .audit import audit_candidate
 from .equivalence import (
@@ -37,6 +38,8 @@ def main() -> int:
     parser.add_argument("--audit-seed", type=int, default=None)
     parser.add_argument("--audit-vectors", type=int, default=128)
     parser.add_argument("--liberty", type=Path, default=None)
+    parser.add_argument("--ppa-objective", action="store_true",
+                        help="opt in to timing-feasible Liberty mapped area during agent-loop")
     parser.add_argument("--tech-lef", type=Path, default=None)
     parser.add_argument("--cells-lef", type=Path, default=None)
     parser.add_argument("--clock-period-ns", type=float, default=10.0)
@@ -127,10 +130,18 @@ def main() -> int:
             max_experiment_seconds=args.max_experiment_seconds,
             max_candidate_bytes=args.max_candidate_bytes,
         )
+        if args.ppa_objective and args.mode != "agent-loop":
+            parser.error("--ppa-objective is supported only by agent-loop")
         if args.mode == "agent-loop":
+            if args.ppa_objective and not all((args.liberty, args.tech_lef, args.cells_lef)):
+                parser.error("--ppa-objective requires --liberty, --tech-lef and --cells-lef")
+            objective = (PPAObjective(args.liberty, args.tech_lef, args.cells_lef,
+                                      args.clock_period_ns, args.io_delay_ns)
+                         if args.ppa_objective else None)
             result = run_agent_loop(
                 agent_command, args.output, budget=budget,
                 seed=args.seed, loop_id=args.loop_id,
+                ppa_objective=objective,
             )
         else:
             result = run_agent_campaign(
