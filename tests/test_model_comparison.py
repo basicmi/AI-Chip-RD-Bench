@@ -32,7 +32,7 @@ class ModelComparisonTests(unittest.TestCase):
                  temp="0", failed=False):
         folder = self.root / label
         run_dir = folder / "runs" / "run-001"
-        run_dir.mkdir(parents=True)
+        run_dir.mkdir(parents=True, exist_ok=True)
         data = loop_report(candidate_area=area)
         data["loop_id"] = label + "-r001"
         path = run_dir / "agent_loop_report.json"
