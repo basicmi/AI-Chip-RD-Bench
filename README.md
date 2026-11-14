@@ -285,6 +285,25 @@ The report records the candidate/reference RTL hashes, Liberty SHA-256, declared
 
 **Interpretation boundary:** the Nangate45 library is a public educational/reference library. This flow reports *synthesis-mapped cell area only*. It does not perform placement, routing, SDC-constrained STA, wire-parasitic extraction, clock-tree synthesis, power estimation, IR/EM, DRC/LVS or sign-off. Do not compare absolute areas across different libraries or treat Nangate45 as a proxy for a modern production process. Physical timing and power require a later OpenROAD/STA flow with a named PDK, constraints and reproducible toolchain.
 
+### SDC-constrained pre-layout timing (Phase 13)
+
+Phase 13 adds a matched **Nangate45 reference cell mapping + OpenROAD/OpenSTA setup timing** comparison for the Golden CORDIC and a candidate. The runner maps both RTL designs with the same Yosys and ABC recipe, writes mapped standard-cell Verilog, loads the same Liberty/LEFs and generates identical clock, input-delay, output-delay, input-transition and output-load constraints.
+
+```bash
+python3 -m chiprd.cli timing \
+  --candidate tasks/cordic/cordic_rotator_refactor.sv \
+  --reference tasks/cordic/cordic_rotator.sv \
+  --liberty /path/to/NangateOpenCellLibrary_typical.lib \
+  --tech-lef /path/to/NangateOpenCellLibrary.tech.lef \
+  --cells-lef /path/to/NangateOpenCellLibrary.macro.lef \
+  --clock-period-ns 10 --io-delay-ns 0.5 \
+  --output artifacts/timing/my-run
+```
+
+Outputs include immutable hashes of all inputs and the generated SDC, side-by-side mapped area, setup worst slack (WNS), timing-met flags and per-design `opensta.log` critical paths. A tool failure, missing mapped netlist, missing constrained critical path or unparseable WNS is an error, not a pass. CI pins the Nangate45 technology/cell LEF Git blob IDs alongside the already pinned Liberty and OSS CAD Suite.
+
+**What this means:** This is **pre-layout, ideal-clock gate-level STA with no wire parasitics**. WNS measures timing relative to the selected 10 ns clock assumption, NOT real physical delay or measured Fmax. The comparison does not include placement, routing, extraction, CTS or silicon signoff. Timing violation is recorded as a metric and does not by itself invalidate a functional proof; engineering feasibility requires evaluating the target timing constraint.
+
 ### Post-selection numerical audit (Phase 11)
 
 After an Agent run or campaign has **finished and frozen its best candidate**, run a separate numerical audit. The auditor reads the selected candidate from the archived loop report, requires a uniquely matched **passing and feasible** experiment, verifies its current RTL SHA-256, and tests it with a newly chosen oracle seed. It does not call an Agent or feed the resulting pass/fail status back into the search controller.
