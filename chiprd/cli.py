@@ -4,7 +4,9 @@ import argparse
 import json
 from pathlib import Path
 from .agent_loop import AgentLoopBudget, parse_agent_command, run_agent_loop
+from .agent_ppa import PPAObjective
 from .agent_campaign import run_agent_campaign
+from .ppa_campaign import run_ppa_campaign
 from .audit import audit_candidate
 from .equivalence import (
     DEFAULT_REFACTOR,
@@ -28,7 +30,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "audit", "ppa", "timing",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -37,6 +39,8 @@ def main() -> int:
     parser.add_argument("--audit-seed", type=int, default=None)
     parser.add_argument("--audit-vectors", type=int, default=128)
     parser.add_argument("--liberty", type=Path, default=None)
+    parser.add_argument("--ppa-objective", action="store_true",
+                        help="opt in to timing-feasible Liberty mapped area during agent-loop")
     parser.add_argument("--tech-lef", type=Path, default=None)
     parser.add_argument("--cells-lef", type=Path, default=None)
     parser.add_argument("--clock-period-ns", type=float, default=10.0)
@@ -113,7 +117,7 @@ def main() -> int:
         if args.patch_proposal is None:
             parser.error("apply-patch requires --patch-proposal")
         result = apply_patch_proposal(args.patch_proposal, args.output)
-    elif args.mode in {"agent-loop", "agent-campaign"}:
+    elif args.mode in {"agent-loop", "agent-campaign", "ppa-campaign"}:
         if args.agent_command_json is None:
             parser.error(f"{args.mode} requires --agent-command-json")
         try:
@@ -127,11 +131,27 @@ def main() -> int:
             max_experiment_seconds=args.max_experiment_seconds,
             max_candidate_bytes=args.max_candidate_bytes,
         )
+        if args.ppa_objective and args.mode != "agent-loop":
+            parser.error("--ppa-objective is supported only by agent-loop")
         if args.mode == "agent-loop":
+            if args.ppa_objective and not all((args.liberty, args.tech_lef, args.cells_lef)):
+                parser.error("--ppa-objective requires --liberty, --tech-lef and --cells-lef")
+            objective = (PPAObjective(args.liberty, args.tech_lef, args.cells_lef,
+                                      args.clock_period_ns, args.io_delay_ns)
+                         if args.ppa_objective else None)
             result = run_agent_loop(
                 agent_command, args.output, budget=budget,
                 seed=args.seed, loop_id=args.loop_id,
+                ppa_objective=objective,
             )
+        elif args.mode == "ppa-campaign":
+            if not all((args.liberty, args.tech_lef, args.cells_lef)):
+                parser.error("ppa-campaign requires --liberty, --tech-lef, --cells-lef")
+            objective = PPAObjective(args.liberty, args.tech_lef, args.cells_lef,
+                                     args.clock_period_ns, args.io_delay_ns)
+            result = run_ppa_campaign(agent_command, args.output, objective,
+                                      runs=args.runs, budget=budget, seed=args.seed,
+                                      campaign_id=args.campaign_id or args.loop_id)
         else:
             result = run_agent_campaign(
                 agent_command, args.output, runs=args.runs, budget=budget,
