@@ -5,10 +5,26 @@ writes credentials, or includes endpoint path/provider body in error reports.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 from urllib import error, request
 
+from .pilot_preflight import ADAPTER
+
 MAX_RESPONSE_BYTES = 1_048_576
+
+
+def probe_configured_models(models: list[str]) -> dict:
+    """Load the same credential validator as the live model adapter."""
+    spec = importlib.util.spec_from_file_location("_chiprd_model_probe_adapter", ADAPTER)
+    if spec is None or spec.loader is None:
+        raise ValueError("Model adapter unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    config = module._config()
+    return probe(config, models)
+
+
 
 
 def probe(config: dict, models: list[str], *, opener=None) -> dict:
