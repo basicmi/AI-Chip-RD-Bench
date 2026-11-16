@@ -41,16 +41,16 @@ def _equivalence_script() -> str:
     # always_comb is lowered to RTLIL processes by read_verilog.  Each design
     # must be run through proc before equiv_make can compare its cells.
     return (
-        "read_verilog -sv gold.sv\\n"
-        "proc\\n"
-        "rename int_mul16 gold\\n"
-        "read_verilog -sv gate.sv\\n"
-        "proc\\n"
-        "rename int_mul16 gate\\n"
-        "equiv_make gold gate equiv\\n"
-        "prep -top equiv\\n"
-        "equiv_simple\\n"
-        "equiv_status -assert\\n"
+        "read_verilog -sv gold.sv\n"
+        "proc\n"
+        "rename int_mul16 gold\n"
+        "read_verilog -sv gate.sv\n"
+        "proc\n"
+        "rename int_mul16 gate\n"
+        "equiv_make gold gate equiv\n"
+        "prep -top equiv\n"
+        "equiv_simple\n"
+        "equiv_status -assert\n"
     )
 
 
