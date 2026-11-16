@@ -32,7 +32,7 @@ class TaskAdapterTests(unittest.TestCase):
             (root / "tasks").mkdir()
             registry = {
                 "schema_version": "1.0.0",
-                "registry_id": "fixture.tasks",
+                "registry_id": "ai-chip-rd-bench.tasks",
                 "tracks": [{
                     "track_id": "future_track", "title": "Future",
                     "description": "Not implemented yet", "maturity": "planned",
