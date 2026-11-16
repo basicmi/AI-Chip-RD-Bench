@@ -22,6 +22,7 @@ from .oracle import expected, vectors
 from .patches import apply_patch_proposal
 from .ppa import compare_area
 from .timing import compare_timing
+from .task_registry import validate_registry
 from .search import SearchBudget, run_search
 
 
@@ -30,7 +31,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -63,7 +64,17 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
-    if args.mode == "timing":
+    if args.mode in {"task-list", "task-validate"}:
+        result = validate_registry()
+        if args.mode == "task-list":
+            result = {key: result[key] for key in (
+                "status", "track_count", "task_count", "runnable_task_count", "tracks", "tasks"
+            )}
+        else:
+            result = {key: result[key] for key in (
+                "status", "track_count", "task_count", "runnable_task_count"
+            )}
+    elif args.mode == "timing":
         if args.candidate is None or args.liberty is None or args.tech_lef is None or args.cells_lef is None:
             parser.error("timing requires --candidate, --liberty, --tech-lef and --cells-lef")
         result = compare_timing(
