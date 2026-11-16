@@ -12,7 +12,7 @@
       "track_id": "ip_feature_evolution",
       "title": "IP rewrite, feature addition and optimization",
       "description": "Modify an existing IP to add or improve functionality, optimize architecture or implementation, and preserve all declared compatibility requirements.",
-      "maturity": "planned"
+      "maturity": "active"
     },
     {
       "track_id": "ip_porting",
@@ -34,7 +34,11 @@
         "top_module": "cordic_rotator",
         "language": "systemverilog",
         "clock": "clk",
-        "reset": {"signal": "rst", "polarity": "active_high", "synchronous": true},
+        "reset": {
+          "signal": "rst",
+          "polarity": "active_high",
+          "synchronous": true
+        },
         "request_valid": "input_valid",
         "response_valid": "output_valid",
         "latency_max_cycles": 32,
@@ -50,12 +54,44 @@
       },
       "objective": {
         "primary": "minimize_liberty_mapped_area",
-        "hard_constraints": ["all_public_correctness_gates_pass", "setup_wns_ns_gte_0"],
-        "secondary_metrics": ["setup_wns_ns", "reported_token_usage"]
+        "hard_constraints": [
+          "all_public_correctness_gates_pass",
+          "setup_wns_ns_gte_0"
+        ],
+        "secondary_metrics": [
+          "setup_wns_ns",
+          "reported_token_usage"
+        ]
       },
       "limitations": [
         "The sampled post-selection numerical audit is not a hidden holdout or formal proof.",
         "Liberty area and ideal-clock OpenSTA are pre-layout estimates, not physical signoff."
+      ]
+    },
+    {
+      "task_id": "multiplier.signed16x16.v1",
+      "track_id": "ip_feature_evolution",
+      "title": "Signed 16x16 integer multiplier",
+      "maturity": "experimental",
+      "spec": "tasks/multiplier/spec.md",
+      "golden_rtl": "tasks/multiplier/int_mul16.sv",
+      "reference_rtl": "tasks/multiplier/int_mul16.sv",
+      "interface": {
+        "top_module": "int_mul16",
+        "language": "systemverilog",
+        "operands": [
+          "a",
+          "b"
+        ],
+        "result": "product",
+        "combinational": true
+      },
+      "evaluation": {
+        "functional": "Verilator plus independent Python integer oracle",
+        "synthesis": "Yosys generic synthesis"
+      },
+      "limitations": [
+        "No protocol formal, equivalence, mutation, mapped PPA or post-selection audit; not comparable to fully runnable CORDIC."
       ]
     }
   ]
