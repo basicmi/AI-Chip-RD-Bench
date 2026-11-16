@@ -36,6 +36,8 @@ jobs:
       - name: Evaluate all multiplier architecture candidates
         continue-on-error: true
         run: |
+          # Run every candidate even when one functional/formal gate fails.
+          set +e
           for entry in \
             "inferred_multiply tasks/multiplier/int_mul16.sv" \
             "split8x8_linear tasks/multiplier/architectures/split8x8_linear.sv" \
