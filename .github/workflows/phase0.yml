@@ -32,6 +32,20 @@ jobs:
           python -m chiprd.cli multiplier-eval --output artifacts/multiplier/functional
           python -m chiprd.cli multiplier-formal --output artifacts/multiplier/formal
           python -m chiprd.cli multiplier-mutation --audit-vectors 128 --output artifacts/multiplier/mutation
+      - name: Evaluate all multiplier architecture candidates
+        run: |
+          for entry in \
+            "inferred_multiply tasks/multiplier/int_mul16.sv" \
+            "radix4_booth_linear tasks/multiplier/architectures/radix4_booth_linear.sv" \
+            "radix4_booth_tree tasks/multiplier/architectures/radix4_booth_tree.sv"; do
+            read -r id rtl <<< "$entry"
+            python -m chiprd.cli multiplier-eval \
+              --candidate "$rtl" --seed 20261116 \
+              --output "artifacts/multiplier-sweep/$id/functional"
+            python -m chiprd.cli multiplier-formal \
+              --candidate "$rtl" \
+              --output "artifacts/multiplier-sweep/$id/formal"
+          done
       - name: Verify and synthesize CORDIC candidate
         run: |
           python -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
@@ -55,7 +69,7 @@ jobs:
             artifacts/mutation/
             artifacts/formal/
             artifacts/formal-negative-control/
-          if-no-files-found: warn
+                      artifacts/multiplier-sweep/\n          if-no-files-found: warn
 
   reproducible-experiment:
     runs-on: ubuntu-24.04
@@ -251,6 +265,30 @@ jobs:
             --output-load-pf 0.002 \
             --platform-label nangate45-reference \
             --output artifacts/timing/nangate45-multiplier
+      - name: Map and time all multiplier architecture candidates
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          for entry in \
+            "inferred_multiply tasks/multiplier/int_mul16.sv" \
+            "radix4_booth_linear tasks/multiplier/architectures/radix4_booth_linear.sv" \
+            "radix4_booth_tree tasks/multiplier/architectures/radix4_booth_tree.sv"; do
+            read -r id rtl <<< "$entry"
+            python3 -m chiprd.cli ppa \
+              --candidate "$rtl" --no-reference --top-module int_mul16 \
+              --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+              --platform-label nangate45-reference \
+              --output "artifacts/multiplier-sweep/$id/ppa"
+            python3 -m chiprd.cli comb-timing \
+              --candidate "$rtl" --top-module int_mul16 \
+              --input-ports a,b --output-ports product \
+              --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+              --tech-lef "$RUNNER_TEMP/NangateOpenCellLibrary.tech.lef" \
+              --cells-lef "$RUNNER_TEMP/NangateOpenCellLibrary.macro.lef" \
+              --max-delay-ns 10 --input-transition-ns 0.05 --output-load-pf 0.002 \
+              --platform-label nangate45-reference \
+              --output "artifacts/multiplier-sweep/$id/timing"
+          done
       - name: Upload Liberty mapping evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -259,7 +297,7 @@ jobs:
           path: |
             artifacts/ppa/
             artifacts/timing/
-          if-no-files-found: warn
+                      artifacts/multiplier-sweep/\n          if-no-files-found: warn
 
   multiplier-evidence-manifest:
     needs: [phase0, liberty-mapping]
@@ -298,4 +336,41 @@ jobs:
         with:
           name: multiplier-evidence-manifest
           path: artifacts/multiplier-evidence/
+          if-no-files-found: error\n
+  multiplier-architecture-comparison:
+    needs: [phase0, liberty-mapping]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download functional and formal architecture evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: phase0-evidence
+          path: artifacts/input/phase0
+      - name: Download mapped PPA and timing architecture evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: liberty-mapping-evidence
+          path: artifacts/input/liberty
+      - name: Assemble architecture evidence and compare Pareto frontier
+        run: |
+          mkdir -p artifacts/multiplier-sweep
+          cp -a artifacts/input/phase0/multiplier-sweep/. artifacts/multiplier-sweep/
+          cp -a artifacts/input/liberty/multiplier-sweep/. artifacts/multiplier-sweep/
+          python3 -m chiprd.multiplier_sweep \
+            --catalog tasks/multiplier/architectures.json \
+            --evidence-root artifacts/multiplier-sweep \
+            --output artifacts/multiplier-sweep-summary
+      - name: Upload architecture comparison and all candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: multiplier-architecture-comparison
+          path: |
+            artifacts/multiplier-sweep/
+            artifacts/multiplier-sweep-summary/
           if-no-files-found: error
