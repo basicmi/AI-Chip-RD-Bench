@@ -26,7 +26,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run Python unit tests
         run: python -m unittest discover -s tests -v
-      - name: Verify and synthesize CORDIC candidate
+      - name: Validate task catalog and run multiplier evidence gates\n        run: |\n          python -m chiprd.cli task-validate\n          python -m chiprd.cli multiplier-eval --output artifacts/multiplier/functional\n          python -m chiprd.cli multiplier-formal --output artifacts/multiplier/formal\n          python -m chiprd.cli multiplier-mutation --audit-vectors 128 --output artifacts/multiplier/mutation\n      - name: Verify and synthesize CORDIC candidate
         run: |
           python -m chiprd.cli all --candidate tasks/cordic/cordic_rotator.sv --output artifacts/ci
       - name: Run simulation mutation sensitivity campaign
