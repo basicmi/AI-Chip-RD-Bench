@@ -23,6 +23,7 @@ from .patches import apply_patch_proposal
 from .ppa import compare_area
 from .timing import compare_timing
 from .task_registry import validate_registry
+from .multiplier_harness import evaluate as evaluate_multiplier
 from .search import SearchBudget, run_search
 
 
@@ -31,7 +32,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -64,7 +65,9 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/cordic"))
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
-    if args.mode in {"task-list", "task-validate"}:
+    if args.mode == "multiplier-eval":
+        result = evaluate_multiplier(args.candidate or ROOT / "tasks/multiplier/int_mul16.sv", args.output, seed=args.seed)
+    elif args.mode in {"task-list", "task-validate"}:
         result = validate_registry()
         if args.mode == "task-list":
             result = {key: result[key] for key in (
