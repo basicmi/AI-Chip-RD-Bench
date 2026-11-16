@@ -64,7 +64,7 @@ class MultiplierSweepTests(unittest.TestCase):
             (base / "ppa" / "ppa_report.json").write_text(json.dumps({
                 "report_type": "chiprd_liberty_mapped_area_comparison",
                 "status": "pass", "platform_label": "nangate45-reference",
-                "library": {"sha256": self.lib_hash},
+                "top_module": "int_mul16", "library": {"sha256": self.lib_hash},
                 "candidate": {"sha256": rtl_hash, "mapping": {
                     "status": "pass", "source_sha256": rtl_hash,
                     "mapped_netlist_sha256": net_hash,
@@ -78,7 +78,8 @@ class MultiplierSweepTests(unittest.TestCase):
                 "top_module": "int_mul16",
                 "inputs": {"candidate": {"sha256": rtl_hash},
                            "liberty": {"sha256": self.lib_hash}},
-                "constraints": {"max_delay_ns": 10.0, "input_transition_ns": 0.05,
+                "constraints": {"input_ports": ["a", "b"], "output_ports": ["product"],
+                                "max_delay_ns": 10.0, "input_transition_ns": 0.05,
                                 "output_load_pf": 0.002},
                 "candidate": {"status": "pass", "mapping": {
                     "status": "pass", "source_sha256": rtl_hash,
