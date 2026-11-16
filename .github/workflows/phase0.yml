@@ -342,7 +342,8 @@ jobs:
         with:
           name: multiplier-evidence-manifest
           path: artifacts/multiplier-evidence/
-          if-no-files-found: error\n
+          if-no-files-found: error
+
   # Keep inconclusive experimental multiplier proofs visible without failing Phase 0.
   multiplier-architecture-comparison:
     continue-on-error: true
