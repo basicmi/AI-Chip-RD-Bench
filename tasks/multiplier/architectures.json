@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "multiplier.signed16x16.v1",
+  "top_module": "int_mul16",
+  "architectures": [
+    {
+      "id": "inferred_multiply",
+      "label": "Inferred signed multiply",
+      "path": "tasks/multiplier/int_mul16.sv",
+      "family": "operator-inference",
+      "description": "Behavioral signed multiplication; synthesis tool chooses the implementation."
+    },
+    {
+      "id": "radix4_booth_linear",
+      "label": "Radix-4 Booth / linear reduction",
+      "path": "tasks/multiplier/architectures/radix4_booth_linear.sv",
+      "family": "radix4-booth",
+      "description": "Nine radix-4 Booth recoded partial products accumulated serially."
+    },
+    {
+      "id": "radix4_booth_tree",
+      "label": "Radix-4 Booth / balanced reduction",
+      "path": "tasks/multiplier/architectures/radix4_booth_tree.sv",
+      "family": "radix4-booth",
+      "description": "Nine radix-4 Booth recoded partial products reduced through a balanced adder tree."
+    }
+  ]
+}
