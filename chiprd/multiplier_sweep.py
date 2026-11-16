@@ -76,8 +76,11 @@ def _evaluate_architecture(row: dict, evidence_root: Path, root: Path) -> dict:
         raise ValueError(f"{architecture_id}: combinational equivalence did not pass")
     if formal.get("candidate_sha256") != candidate_hash:
         raise ValueError(f"{architecture_id}: formal report candidate hash mismatch")
-    if formal.get("task_id") != "multiplier.signed16x16.v1":
-        raise ValueError(f"{architecture_id}: formal task id mismatch")
+    if formal.get("task_id") != "multiplier.signed16x16.v1" or formal.get("semantics") != "combinational_all_inputs":
+        raise ValueError(f"{architecture_id}: formal task or proof semantics mismatch")
+    reference_hash = formal.get("reference_sha256")
+    if not isinstance(reference_hash, str) or len(reference_hash) != 64:
+        raise ValueError(f"{architecture_id}: formal reference hash is missing")
 
     if ppa.get("status") != "pass" or ppa.get("report_type") != "chiprd_liberty_mapped_area_comparison":
         raise ValueError(f"{architecture_id}: Liberty mapping did not pass")
@@ -137,6 +140,10 @@ def _evaluate_architecture(row: dict, evidence_root: Path, root: Path) -> dict:
         "rtl_sha256": candidate_hash,
         "functional_vectors": functional.get("tested_vectors"),
         "formal_status": formal["proof_status"],
+        "formal_reference_sha256": reference_hash,
+        "functional_seed": functional.get("seed"),
+        "functional_random_vectors": functional.get("random_vector_count"),
+        "functional_edge_vectors": functional.get("edge_vector_count"),
         "platform_label": ppa.get("platform_label"),
         "liberty_sha256": ppa.get("library", {}).get("sha256"),
         "mapped_cell_area": area,
@@ -190,11 +197,14 @@ def build_comparison(catalog_path: Path, evidence_root: Path, output: Path) -> d
     reference = results[0]
     for result in results[1:]:
         for key in ("platform_label", "liberty_sha256", "max_delay_budget_ns",
-                    "input_transition_ns", "output_load_pf"):
+                    "input_transition_ns", "output_load_pf", "formal_reference_sha256",
+                    "functional_seed", "functional_random_vectors", "functional_edge_vectors"):
             if result[key] != reference[key]:
                 raise ValueError(f"Unfair comparison: {key} differs for {result['id']}")
         if result["functional_vectors"] != reference["functional_vectors"]:
             raise ValueError("Unfair comparison: functional vector counts differ")
+    if reference["formal_reference_sha256"] != reference["rtl_sha256"]:
+        raise ValueError("The baseline formal reference is not the catalog baseline RTL")
     frontier = [
         row["id"] for row in results
         if not any(_dominates(other, row) for other in results if other["id"] != row["id"])
