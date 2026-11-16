@@ -36,8 +36,8 @@ jobs:
         run: |
           for entry in \
             "inferred_multiply tasks/multiplier/int_mul16.sv" \
-            "radix4_booth_linear tasks/multiplier/architectures/radix4_booth_linear.sv" \
-            "radix4_booth_tree tasks/multiplier/architectures/radix4_booth_tree.sv"; do
+            "split8x8_linear tasks/multiplier/architectures/split8x8_linear.sv" \
+            "split8x8_tree tasks/multiplier/architectures/split8x8_tree.sv"; do
             read -r id rtl <<< "$entry"
             python -m chiprd.cli multiplier-eval \
               --candidate "$rtl" --seed 20261116 \
@@ -272,8 +272,8 @@ jobs:
           source "$RUNNER_TEMP/oss-cad-suite/environment"
           for entry in \
             "inferred_multiply tasks/multiplier/int_mul16.sv" \
-            "radix4_booth_linear tasks/multiplier/architectures/radix4_booth_linear.sv" \
-            "radix4_booth_tree tasks/multiplier/architectures/radix4_booth_tree.sv"; do
+            "split8x8_linear tasks/multiplier/architectures/split8x8_linear.sv" \
+            "split8x8_tree tasks/multiplier/architectures/split8x8_tree.sv"; do
             read -r id rtl <<< "$entry"
             python3 -m chiprd.cli ppa \
               --candidate "$rtl" --no-reference --top-module int_mul16 \
