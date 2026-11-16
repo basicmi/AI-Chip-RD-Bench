@@ -6,7 +6,7 @@ from unittest.mock import patch
 import subprocess
 
 from chiprd.multiplier_validation import (
-    ANCHOR, MUTATIONS, prove_equivalence, run_multiplier_mutations,
+    ANCHOR, MUTATIONS, _equivalence_script, prove_equivalence, run_multiplier_mutations,
 )
 
 
@@ -67,6 +67,15 @@ class MultiplierFormalTests(unittest.TestCase):
             self.candidate, self.root / "mutations2", random_count=16)
         self.assertEqual(report["detected_count"], 0)
         self.assertEqual(report["status"], "fail")
+
+    def test_equivalence_script_lowers_each_design_before_equiv_make(self):
+        script = _equivalence_script()
+        self.assertLess(script.index("read_verilog -sv gold.sv"), script.index("proc"))
+        self.assertLess(script.index("proc"), script.index("rename int_mul16 gold"))
+        self.assertLess(script.index("rename int_mul16 gold"), script.index("read_verilog -sv gate.sv"))
+        self.assertLess(script.index("read_verilog -sv gate.sv"), script.rindex("proc"))
+        self.assertLess(script.rindex("proc"), script.index("rename int_mul16 gate"))
+        self.assertLess(script.index("rename int_mul16 gate"), script.index("equiv_make gold gate equiv"))
 
     def test_mutation_anchor_is_unique_in_golden(self):
         self.assertEqual(self.gold.read_text().count(ANCHOR), 1)
