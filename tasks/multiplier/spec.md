@@ -12,8 +12,8 @@ The multiplier remains an experimental, standalone architecture study. The
 repository includes three candidates in `tasks/multiplier/architectures.json`:
 
 - `inferred_multiply`: behavioral `a * b` baseline.
-- `radix4_booth_linear`: radix-4 Booth recoding with serial partial-product accumulation.
-- `radix4_booth_tree`: radix-4 Booth recoding with a balanced adder reduction tree.
+- `split8x8_linear`: four signed/unsigned 8x8 partial products with serial accumulation.
+- `split8x8_tree`: the same four partial products with balanced reduction.
 
 Each candidate is evaluated with the same seeded Verilator vectors, Yosys
 combinational equivalence against the immutable golden RTL, Nangate45 Liberty
