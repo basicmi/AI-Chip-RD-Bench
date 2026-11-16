@@ -1,3 +1,41 @@
+## Unified multiplier evidence manifest (Phase 28)
+
+The CI now assembles the signed 16x16 multiplier's sampled functional
+simulation, combinational equivalence proof, mutation sensitivity, Liberty
+mapped-cell area and clockless OpenSTA timing into one source-bound manifest.
+
+The builder refuses to combine reports whose RTL SHA-256 differs. It also
+checks that the PPA and timing reports refer to the same mapped netlist,
+Liberty hash, platform, cell area and cell count. The verifier re-hashes the
+candidate, reports and mapped netlists from the manifest.
+
+The manifest is an integrity-checked evidence index, **not a digital signature,
+trusted timestamp, secret holdout, or physical signoff report**. Its hashes
+detect accidental/partial changes; an actor able to rewrite every artifact
+can also rewrite an unsigned manifest.
+
+Reproduce locally after running the existing multiplier validation and
+Nangate45 mapping/timing commands:
+
+```bash
+python -m chiprd.multiplier_evidence build \
+  --candidate tasks/multiplier/int_mul16.sv \
+  --functional-report artifacts/multiplier/functional/report.json \
+  --formal-report artifacts/multiplier/formal/equivalence_report.json \
+  --mutation-report artifacts/multiplier/mutation/mutation_report.json \
+  --ppa-report artifacts/ppa/nangate45-multiplier/ppa_report.json \
+  --timing-report artifacts/timing/nangate45-multiplier/combinational_timing_report.json \
+  --output artifacts/multiplier-evidence
+
+python -m chiprd.multiplier_evidence verify \
+  --manifest artifacts/multiplier-evidence/multiplier_evidence_manifest.json
+```
+
+The CI's `multiplier-evidence-manifest` job downloads the two upstream
+evidence artifacts, builds the manifest, independently verifies it, and
+publishes a single downloadable artifact. It runs only when both evidence
+producing jobs pass.
+
 ## Clockless combinational timing (Phase 27)
 
 The combinational multiplier is evaluated with an explicit input-to-output
