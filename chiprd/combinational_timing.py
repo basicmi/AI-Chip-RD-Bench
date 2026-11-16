@@ -171,7 +171,7 @@ def analyze_combinational_timing(
                 f"link_design {top_module}\nread_sdc constraints.sdc\n"
                 "report_checks -path_delay max -digits 4\n"
                 "report_worst_slack -max -digits 6\n"
-                "puts \\"CHIPRD_WNS_NS [sta::worst_slack -max]\\"\n"
+                'puts "CHIPRD_WNS_NS [sta::worst_slack -max]"\n'
             )
             (work / "timing.tcl").write_text(script, encoding="utf-8")
             proc = ppa._run([openroad, "-exit", "timing.tcl"], work)
