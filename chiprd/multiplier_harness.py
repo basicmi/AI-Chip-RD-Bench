@@ -77,7 +77,7 @@ def evaluate(candidate: Path, output: Path, *, seed: int = 20261116,
                 sim.stdout + "\n[stderr]\n" + sim.stderr)
             observed = {}
             for line in sim.stdout.splitlines():
-                match = re.fullmatch(r"OUT (\\d+) ([0-9a-fA-F]{8})", line.strip())
+                match = re.fullmatch(r"OUT (\d+) ([0-9a-fA-F]{8})", line.strip())
                 if match:
                     idx = int(match.group(1))
                     value = int(match.group(2), 16)
