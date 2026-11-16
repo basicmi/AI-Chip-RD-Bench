@@ -180,6 +180,17 @@ jobs:
             --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
             --platform-label nangate45-reference \
             --output artifacts/ppa/nangate45
+      - name: Map experimental signed multiplier to Nangate45
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli ppa \
+            --candidate tasks/multiplier/int_mul16.sv \
+            --no-reference \
+            --top-module int_mul16 \
+            --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+            --platform-label nangate45-reference \
+            --output artifacts/ppa/nangate45-multiplier
       - name: Install standalone OpenROAD STA engine
         shell: bash
         run: |
