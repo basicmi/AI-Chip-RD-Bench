@@ -77,9 +77,12 @@ def evaluate(candidate: Path, output: Path, *, seed: int = 20261116,
                 sim.stdout + "\n[stderr]\n" + sim.stderr)
             observed = {}
             for line in sim.stdout.splitlines():
-                match = re.fullmatch(r"OUT (\d+) (-?\d+)", line.strip())
+                match = re.fullmatch(r"OUT (\d+) ([0-9a-fA-F]{8})", line.strip())
                 if match:
-                    idx, value = map(int, match.groups())
+                    idx = int(match.group(1))
+                    value = int(match.group(2), 16)
+                    if value & 0x80000000:
+                        value -= 0x1_0000_0000
                     if idx in observed:
                         raise ValueError("duplicate output index")
                     observed[idx] = value

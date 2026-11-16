@@ -88,6 +88,8 @@
       },
       "evaluation": {
         "functional": "Verilator plus independent Python integer oracle",
+        "combinational_formal": "Yosys equiv_make/equiv_simple/equiv_status all-input combinational equivalence",
+        "mutation": "public source-level mutations rejected by independent functional oracle",
         "synthesis": "Yosys generic synthesis"
       },
       "limitations": [
