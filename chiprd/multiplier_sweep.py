@@ -66,14 +66,10 @@ def _evaluate_architecture(row: dict, evidence_root: Path, root: Path) -> dict:
     }
     data = {key: _json(path, f"{architecture_id} {key} report") for key, path in reports.items()}
     functional, formal, ppa, timing = (data[k] for k in ("functional", "formal", "ppa", "timing"))
-    if functional.get("status") != "pass" or functional.get("functional_status") != "pass":
-        raise ValueError(f"{architecture_id}: sampled functional evaluation did not pass")
     if functional.get("candidate_sha256") != candidate_hash:
         raise ValueError(f"{architecture_id}: functional report candidate hash mismatch")
     if functional.get("task_id") != "multiplier.signed16x16.v1":
         raise ValueError(f"{architecture_id}: functional task id mismatch")
-    if formal.get("status") != "pass" or formal.get("proof_status") != "equivalent":
-        raise ValueError(f"{architecture_id}: combinational equivalence did not pass")
     if formal.get("candidate_sha256") != candidate_hash:
         raise ValueError(f"{architecture_id}: formal report candidate hash mismatch")
     if formal.get("task_id") != "multiplier.signed16x16.v1" or formal.get("semantics") != "combinational_all_inputs":
@@ -81,6 +77,22 @@ def _evaluate_architecture(row: dict, evidence_root: Path, root: Path) -> dict:
     reference_hash = formal.get("reference_sha256")
     if not isinstance(reference_hash, str) or len(reference_hash) != 64:
         raise ValueError(f"{architecture_id}: formal reference hash is missing")
+    # A failed/inconclusive proof is an excluded candidate, not a reason to
+    # discard evidence for independently proven architectures. Never rank it.
+    if functional.get("status") != "pass" or functional.get("functional_status") != "pass":
+        return {"id": architecture_id, "label": row["label"], "family": row["family"],
+                "rtl_path": row["path"], "rtl_sha256": candidate_hash,
+                "eligibility": "excluded", "exclusion_reason": "functional_gate_not_pass",
+                "functional_status": functional.get("functional_status", functional.get("status")),
+                "formal_status": formal.get("proof_status"),
+                "evidence_sha256": {key: _sha(path) for key, path in reports.items()}}
+    if formal.get("status") != "pass" or formal.get("proof_status") != "equivalent":
+        return {"id": architecture_id, "label": row["label"], "family": row["family"],
+                "rtl_path": row["path"], "rtl_sha256": candidate_hash,
+                "eligibility": "excluded", "exclusion_reason": "formal_proof_not_equivalent",
+                "functional_status": "pass",
+                "formal_status": formal.get("proof_status", formal.get("status")),
+                "evidence_sha256": {key: _sha(path) for key, path in reports.items()}}
 
     if ppa.get("status") != "pass" or ppa.get("report_type") != "chiprd_liberty_mapped_area_comparison":
         raise ValueError(f"{architecture_id}: Liberty mapping did not pass")
@@ -193,7 +205,11 @@ def build_comparison(catalog_path: Path, evidence_root: Path, output: Path) -> d
     except ValueError as exc:
         raise ValueError("Evidence root must remain inside repository root") from exc
 
-    results = [_evaluate_architecture(row, evidence_root, root) for row in rows]
+    evaluated = [_evaluate_architecture(row, evidence_root, root) for row in rows]
+    eligible = [row for row in evaluated if row.get("eligibility") != "excluded"]
+    if not eligible or eligible[0]["id"] != rows[0]["id"]:
+        raise ValueError("Catalog baseline must pass functional and all-input formal gates")
+    results = eligible
     reference = results[0]
     for result in results[1:]:
         for key in ("platform_label", "liberty_sha256", "max_delay_budget_ns",
@@ -205,13 +221,14 @@ def build_comparison(catalog_path: Path, evidence_root: Path, output: Path) -> d
             raise ValueError("Unfair comparison: functional vector counts differ")
     if reference["formal_reference_sha256"] != reference["rtl_sha256"]:
         raise ValueError("The baseline formal reference is not the catalog baseline RTL")
-    frontier = [
+    frontier = ([
         row["id"] for row in results
         if not any(_dominates(other, row) for other in results if other["id"] != row["id"])
-    ]
+    ] if len(results) >= 2 else [])
     baseline_area = reference["mapped_cell_area"]
     baseline_delay = reference["estimated_worst_path_delay_ns"]
     for row in results:
+        row["eligibility"] = "eligible"
         row["area_delta_vs_baseline_percent"] = round(
             (row["mapped_cell_area"] / baseline_area - 1.0) * 100.0, 4
         )
@@ -232,7 +249,7 @@ def build_comparison(catalog_path: Path, evidence_root: Path, output: Path) -> d
     report = {
         "schema_version": "1.0.0",
         "report_type": "chiprd_multiplier_architecture_comparison",
-        "status": "pass",
+        "status": "pass" if len(results) == len(evaluated) and len(results) >= 2 else "partial",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "architecture_catalog_sha256": _sha(catalog_path),
         "task_id": catalog["task_id"],
@@ -244,7 +261,9 @@ def build_comparison(catalog_path: Path, evidence_root: Path, output: Path) -> d
             "same_liberty_and_timing_constraints_required": True,
             "all_candidates_must_pass_functional_and_formal_gates": True,
         },
-        "architectures": results,
+        "architectures": results + [row for row in evaluated if row.get("eligibility") == "excluded"],
+        "eligible_architecture_ids": [row["id"] for row in results],
+        "excluded_architectures": [row for row in evaluated if row.get("eligibility") == "excluded"],
         "pareto_frontier": frontier,
         "limitations": [
             "Mapped standard-cell area and pre-layout input-to-output delay only; no power measurement.",
