@@ -82,8 +82,10 @@ class PPACampaignAuditTests(unittest.TestCase):
 
     def test_rejects_tampered_loop_report(self):
         self.loop_path.write_text(json.dumps({**self.loop, "improved_vs_baseline": True}))
-        with self.assertRaisesRegex(ValueError, "hash mismatch"):
-            ppa_campaign_audit.audit_ppa_campaign(self.campaign, audit_seed=991977)
+        result = ppa_campaign_audit.audit_ppa_campaign(self.campaign, audit_seed=991977)
+        self.assertEqual(result["status"], "fail")
+        self.assertEqual(result["runs"][0]["status"], "error")
+        self.assertEqual(result["runs"][0]["error_type"], "ValueError")
 
     def test_failed_independent_audit_fails_campaign_audit(self):
         def fake_audit(candidate, output, *, audit_seed, count, loop_report):
