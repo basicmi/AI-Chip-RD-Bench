@@ -24,6 +24,7 @@ from .ppa import compare_area
 from .timing import compare_timing
 from .task_registry import validate_registry
 from .multiplier_harness import evaluate as evaluate_multiplier
+from .multiplier_validation import prove_equivalence as prove_multiplier_equivalence, run_multiplier_mutations
 from .search import SearchBudget, run_search
 
 
@@ -32,7 +33,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
