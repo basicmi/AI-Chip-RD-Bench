@@ -43,9 +43,13 @@ def _equivalence_script() -> str:
     return (
         "read_verilog -sv gold.sv\n"
         "proc\n"
+        "alumacc\n"
+        "opt\n"
         "rename int_mul16 gold\n"
         "read_verilog -sv gate.sv\n"
         "proc\n"
+        "alumacc\n"
+        "opt\n"
         "rename int_mul16 gate\n"
         "equiv_make gold gate equiv\n"
         "prep -top equiv\n"
