@@ -69,7 +69,8 @@ jobs:
             artifacts/mutation/
             artifacts/formal/
             artifacts/formal-negative-control/
-                      artifacts/multiplier-sweep/\n          if-no-files-found: warn
+            artifacts/multiplier-sweep/
+          if-no-files-found: warn
 
   reproducible-experiment:
     runs-on: ubuntu-24.04
@@ -297,7 +298,8 @@ jobs:
           path: |
             artifacts/ppa/
             artifacts/timing/
-                      artifacts/multiplier-sweep/\n          if-no-files-found: warn
+            artifacts/multiplier-sweep/
+          if-no-files-found: warn
 
   multiplier-evidence-manifest:
     needs: [phase0, liberty-mapping]
