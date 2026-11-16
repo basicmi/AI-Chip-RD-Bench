@@ -1,3 +1,38 @@
+## Phase 29 — signed multiplier architecture sweep
+
+The experimental signed 16x16 multiplier now has a small, reproducible
+architecture catalog:
+
+| Candidate | Architecture |
+|---|---|
+| `inferred_multiply` | Behavioral signed multiply; synthesis-selected baseline |
+| `radix4_booth_linear` | Radix-4 Booth recoding with serial partial-product accumulation |
+| `radix4_booth_tree` | Radix-4 Booth recoding with balanced partial-product reduction |
+
+CI applies the same functional vector seed, combinational equivalence proof,
+Nangate45 Liberty library, top module, input transition, output load and
+input-to-output max-delay budget to every candidate. The comparison builder
+checks source and mapped-netlist hashes, proof status, library identity and
+constraint identity before calculating area/delay deltas and the Pareto
+frontier.
+
+The report is produced as the `multiplier-architecture-comparison` workflow
+artifact. The CLI can assemble the report from downloaded candidate evidence:
+
+```bash
+python -m chiprd.multiplier_sweep \
+  --catalog tasks/multiplier/architectures.json \
+  --evidence-root artifacts/multiplier-sweep \
+  --output artifacts/multiplier-sweep-summary
+```
+
+The Pareto frontier is a comparison, not an automatic winner selection.
+Current metrics are Liberty-mapped cell area and pre-layout max delay only;
+power, placement, routing, parasitics and silicon signoff are not measured.
+The task remains experimental and is not comparable to the sequential CORDIC
+track. Candidate-specific mutation campaigns and an independent post-selection
+audit are planned follow-on work.
+
 ## Unified multiplier evidence manifest (Phase 28)
 
 The CI assembles the signed 16x16 multiplier's sampled functional simulation,
