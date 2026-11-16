@@ -36,6 +36,7 @@ class MultiplierSweepTests(unittest.TestCase):
         self.evidence = self.root / "evidence"
         self.evidence.mkdir()
         self.lib_hash = "a" * 64
+        self.gold_hash = digest(self.root / "rtl/baseline.sv")
         metrics = {
             "baseline": (10.0, 5.0),
             "small_slow": (8.0, 6.0),
@@ -55,11 +56,13 @@ class MultiplierSweepTests(unittest.TestCase):
             (base / "functional" / "report.json").write_text(json.dumps({
                 "task_id": "multiplier.signed16x16.v1", "status": "pass",
                 "functional_status": "pass", "candidate_sha256": rtl_hash,
+                "seed": 20261116, "random_vector_count": 2048, "edge_vector_count": 72,
                 "tested_vectors": 2120,
             }))
             (base / "formal" / "equivalence_report.json").write_text(json.dumps({
                 "task_id": "multiplier.signed16x16.v1", "status": "pass",
-                "proof_status": "equivalent", "candidate_sha256": rtl_hash,
+                "proof_status": "equivalent", "semantics": "combinational_all_inputs",
+                "reference_sha256": self.gold_hash, "candidate_sha256": rtl_hash,
             }))
             (base / "ppa" / "ppa_report.json").write_text(json.dumps({
                 "report_type": "chiprd_liberty_mapped_area_comparison",
