@@ -21,7 +21,8 @@ from .mutation import run_mutations
 from .oracle import expected, vectors
 from .patches import apply_patch_proposal
 from .ppa import compare_area
-from .timing import compare_timing\nfrom .combinational_timing import analyze_combinational_timing
+from .timing import compare_timing
+from .combinational_timing import analyze_combinational_timing
 from .task_registry import validate_registry
 from .multiplier_harness import evaluate as evaluate_multiplier
 from .multiplier_validation import prove_equivalence as prove_multiplier_equivalence, run_multiplier_mutations
