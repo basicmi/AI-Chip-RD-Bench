@@ -20,7 +20,9 @@ class TaskAdapterTests(unittest.TestCase):
         task = load_task("multiplier.signed16x16.v1")
         self.assertEqual(task.maturity, "experimental")
         self.assertEqual(task.top_module, "int_mul16")
-        self.assertEqual(set(task.evaluation), {\n            "functional", "combinational_formal", "mutation", "synthesis",\n        })
+        self.assertEqual(set(task.evaluation), {
+            "functional", "combinational_formal", "mutation", "synthesis",
+        })
 
     def test_unknown_task_id_raises_key_error(self):
         with self.assertRaisesRegex(KeyError, "Unknown task_id"):
