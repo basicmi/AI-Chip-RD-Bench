@@ -81,6 +81,8 @@ def _evaluate_architecture(row: dict, evidence_root: Path, root: Path) -> dict:
 
     if ppa.get("status") != "pass" or ppa.get("report_type") != "chiprd_liberty_mapped_area_comparison":
         raise ValueError(f"{architecture_id}: Liberty mapping did not pass")
+    if ppa.get("top_module") != "int_mul16":
+        raise ValueError(f"{architecture_id}: PPA top module mismatch")
     mapped = ppa.get("candidate", {}).get("mapping", {})
     if ppa.get("candidate", {}).get("sha256") != candidate_hash or mapped.get("source_sha256") != candidate_hash:
         raise ValueError(f"{architecture_id}: PPA report candidate hash mismatch")
@@ -103,6 +105,8 @@ def _evaluate_architecture(row: dict, evidence_root: Path, root: Path) -> dict:
         raise ValueError(f"{architecture_id}: timing mode mismatch")
     if timing.get("top_module") != "int_mul16":
         raise ValueError(f"{architecture_id}: timing top module mismatch")
+    if timing.get("constraints", {}).get("input_ports") != ["a", "b"] or timing.get("constraints", {}).get("output_ports") != ["product"]:
+        raise ValueError(f"{architecture_id}: constrained timing ports mismatch")
     if timing.get("inputs", {}).get("candidate", {}).get("sha256") != candidate_hash:
         raise ValueError(f"{architecture_id}: timing report candidate hash mismatch")
     timing_mapping = timing.get("candidate", {}).get("mapping", {})
@@ -220,6 +224,7 @@ def build_comparison(catalog_path: Path, evidence_root: Path, output: Path) -> d
         "report_type": "chiprd_multiplier_architecture_comparison",
         "status": "pass",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "architecture_catalog_sha256": _sha(catalog_path),
         "task_id": catalog["task_id"],
         "comparison_policy": {
             "area_objective": "minimize",
