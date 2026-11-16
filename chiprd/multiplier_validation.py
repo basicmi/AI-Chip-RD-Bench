@@ -37,6 +37,23 @@ def _regular(path: Path) -> Path:
     return path
 
 
+def _equivalence_script() -> str:
+    # always_comb is lowered to RTLIL processes by read_verilog.  Each design
+    # must be run through proc before equiv_make can compare its cells.
+    return (
+        "read_verilog -sv gold.sv\\n"
+        "proc\\n"
+        "rename int_mul16 gold\\n"
+        "read_verilog -sv gate.sv\\n"
+        "proc\\n"
+        "rename int_mul16 gate\\n"
+        "equiv_make gold gate equiv\\n"
+        "prep -top equiv\\n"
+        "equiv_simple\\n"
+        "equiv_status -assert\\n"
+    )
+
+
 def prove_equivalence(reference: Path, candidate: Path, output: Path) -> dict:
     reference, candidate = _regular(reference), _regular(candidate)
     output = Path(output)
@@ -62,16 +79,7 @@ def prove_equivalence(reference: Path, candidate: Path, output: Path) -> dict:
             work = Path(tmp)
             shutil.copyfile(reference, work / "gold.sv")
             shutil.copyfile(candidate, work / "gate.sv")
-            script = (
-                "read_verilog -sv gold.sv\n"
-                "rename int_mul16 gold\n"
-                "read_verilog -sv gate.sv\n"
-                "rename int_mul16 gate\n"
-                "equiv_make gold gate equiv\n"
-                "prep -top equiv\n"
-                "equiv_simple\n"
-                "equiv_status -assert\n"
-            )
+            script = _equivalence_script()
             (work / "equiv.ys").write_text(script, encoding="utf-8")
             try:
                 proc = subprocess.run([yosys, "-Q", "-T", "-s", "equiv.ys"],
