@@ -18,7 +18,8 @@ module tb_int_mul16;
                 #1;
                 $display("OUT %0d %08x", idx, product);
                 idx = idx + 1;
-            end else if (rc != -1) begin
+            end else begin
+                if ($feof(fd)) break;
                 $fatal(1, "malformed vector input at index %0d (fscanf rc=%0d)", idx, rc);
             end
         end
