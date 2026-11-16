@@ -6,8 +6,8 @@ architecture catalog:
 | Candidate | Architecture |
 |---|---|
 | `inferred_multiply` | Behavioral signed multiply; synthesis-selected baseline |
-| `radix4_booth_linear` | Radix-4 Booth recoding with serial partial-product accumulation |
-| `radix4_booth_tree` | Radix-4 Booth recoding with balanced partial-product reduction |
+| `split8x8_linear` | Four signed/unsigned 8x8 partial products with serial accumulation |
+| `split8x8_tree` | Four signed/unsigned 8x8 partial products with balanced reduction |
 
 CI applies the same functional vector seed, combinational equivalence proof,
 Nangate45 Liberty library, top module, input transition, output load and
