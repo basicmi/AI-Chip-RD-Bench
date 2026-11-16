@@ -67,7 +67,27 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=20261112)
     args = parser.parse_args()
     if args.mode == "multiplier-eval":
-        result = evaluate_multiplier(args.candidate or ROOT / "tasks/multiplier/int_mul16.sv", args.output, seed=args.seed)
+        result = evaluate_multiplier(
+            args.candidate or ROOT / "tasks/multiplier/int_mul16.sv",
+            args.output, seed=args.seed,
+        )
+    elif args.mode == "multiplier-formal":
+        # The repository's immutable golden RTL is the default reference;
+        # --candidate may point at a proposed implementation.
+        multiplier_reference = (
+            ROOT / "tasks/multiplier/int_mul16.sv"
+            if args.reference == DEFAULT_REFERENCE else args.reference
+        )
+        result = prove_multiplier_equivalence(
+            multiplier_reference,
+            args.candidate or ROOT / "tasks/multiplier/int_mul16.sv",
+            args.output,
+        )
+    elif args.mode == "multiplier-mutation":
+        result = run_multiplier_mutations(
+            args.candidate or ROOT / "tasks/multiplier/int_mul16.sv",
+            args.output, seed=args.seed,
+        )
     elif args.mode in {"task-list", "task-validate"}:
         result = validate_registry()
         if args.mode == "task-list":
