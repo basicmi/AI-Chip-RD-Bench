@@ -6,9 +6,11 @@ objective and repeated-campaign runner into one reproducible CI experiment.
 ## What CI now exercises
 
 1. Two independent runs start from the same immutable CORDIC Golden RTL.
-2. Each run allows two Agent turns. The deterministic CI fixture submits a
-   behavior-preserving patch, receives sealed-gate + PPA feedback, then stops.
-   This tests the feedback hand-off without requiring credentials or a live LLM.
+2. Each run allows three Agent turns. The deterministic CI fixture submits a
+   behavior-preserving first-generation patch, receives sealed-gate + PPA
+   feedback, submits a second equivalent candidate with a different expression
+   ordering, receives the second feedback record, then stops. This exercises
+   two candidate generations and lineage hand-off without credentials or a live LLM.
 3. Every candidate must pass all six sealed public gates before PPA is measured.
 4. The PPA objective is minimum Nangate45 Liberty-mapped area subject to
    non-negative pre-layout OpenSTA setup slack, using the same library, LEFs,
