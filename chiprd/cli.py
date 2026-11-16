@@ -22,6 +22,7 @@ from .oracle import expected, vectors
 from .patches import apply_patch_proposal
 from .ppa import compare_area
 from .timing import compare_timing
+from .combinational_timing import analyze_combinational_timing
 from .task_registry import validate_registry
 from .multiplier_harness import evaluate as evaluate_multiplier
 from .multiplier_validation import prove_equivalence as prove_multiplier_equivalence, run_multiplier_mutations
@@ -33,7 +34,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -47,6 +48,11 @@ def main() -> int:
     parser.add_argument("--tech-lef", type=Path, default=None)
     parser.add_argument("--cells-lef", type=Path, default=None)
     parser.add_argument("--clock-period-ns", type=float, default=10.0)
+    parser.add_argument("--max-delay-ns", type=float, default=10.0)
+    parser.add_argument("--input-ports", type=str, default="a,b")
+    parser.add_argument("--output-ports", type=str, default="product")
+    parser.add_argument("--input-transition-ns", type=float, default=0.05)
+    parser.add_argument("--output-load-pf", type=float, default=0.002)
     parser.add_argument("--io-delay-ns", type=float, default=0.5)
     parser.add_argument("--platform-label", type=str, default="user-supplied-liberty")
     parser.add_argument("--no-reference", action="store_true",
@@ -102,6 +108,16 @@ def main() -> int:
             result = {key: result[key] for key in (
                 "status", "track_count", "task_count", "runnable_task_count"
             )}
+    elif args.mode == "comb-timing":
+        if args.candidate is None or not all((args.liberty, args.tech_lef, args.cells_lef)):
+            parser.error("comb-timing requires --candidate, --liberty, --tech-lef and --cells-lef")
+        result = analyze_combinational_timing(
+            args.candidate, args.liberty, args.tech_lef, args.cells_lef, args.output,
+            top_module=args.top_module, input_ports=args.input_ports,
+            output_ports=args.output_ports, max_delay_ns=args.max_delay_ns,
+            input_transition_ns=args.input_transition_ns,
+            output_load_pf=args.output_load_pf, platform_label=args.platform_label,
+        )
     elif args.mode == "timing":
         if args.candidate is None or args.liberty is None or args.tech_lef is None or args.cells_lef is None:
             parser.error("timing requires --candidate, --liberty, --tech-lef and --cells-lef")

@@ -234,6 +234,23 @@ jobs:
           python3 -m chiprd.ppa_scorecard \
             artifacts/timing/nangate45/timing_report.json \
             --output artifacts/timing/nangate45/ppa_scorecard.json
+      - name: Analyze signed multiplier input-to-output timing (clockless)
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli comb-timing \
+            --candidate tasks/multiplier/int_mul16.sv \
+            --top-module int_mul16 \
+            --input-ports a,b \
+            --output-ports product \
+            --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+            --tech-lef "$RUNNER_TEMP/NangateOpenCellLibrary.tech.lef" \
+            --cells-lef "$RUNNER_TEMP/NangateOpenCellLibrary.macro.lef" \
+            --max-delay-ns 10 \
+            --input-transition-ns 0.05 \
+            --output-load-pf 0.002 \
+            --platform-label nangate45-reference \
+            --output artifacts/timing/nangate45-multiplier
       - name: Upload Liberty mapping evidence
         if: always()
         uses: actions/upload-artifact@v4
