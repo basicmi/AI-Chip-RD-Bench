@@ -1,3 +1,11 @@
+## Clockless combinational timing (Phase 27)
+
+The combinational multiplier is evaluated with an explicit input-to-output
+`set_max_delay` constraint, not the sequential CORDIC clock/SDC model.
+The runner records mapped-cell area, max-delay slack, path endpoints and
+input-transition/output-load assumptions. See
+[Phase 27 methodology](docs/phase27-combinational-sta.md).
+
 ## Multiplier Liberty mapping (Phase 26)
 
 The Liberty mapper now accepts `--top-module` (default remains
