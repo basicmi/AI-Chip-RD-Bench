@@ -52,7 +52,7 @@ class LibertyMappingTests(unittest.TestCase):
              "mapped_cell_count": 100, "mapped_cell_area": 120.0,
              "cell_type_histogram": {"INV_X1": 100}, "yosys_version": "Yosys fixture"},
         ])
-        with patch.object(ppa, "_map_one", side_effect=lambda *args: next(results)):
+        with patch.object(ppa, "_map_one", side_effect=lambda *args, **kwargs: next(results)):
             report = ppa.compare_area(
                 self.candidate, self.liberty, self.output,
                 reference=self.reference, platform_label="fixture-platform",
