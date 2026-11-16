@@ -261,3 +261,41 @@ jobs:
             artifacts/timing/
           if-no-files-found: warn
 
+  multiplier-evidence-manifest:
+    needs: [phase0, liberty-mapping]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download functional, formal and mutation evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: phase0-evidence
+          path: artifacts/input/phase0
+      - name: Download Liberty mapping and combinational timing evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: liberty-mapping-evidence
+          path: artifacts/input/liberty
+      - name: Build and independently verify multiplier evidence manifest
+        run: |
+          python3 -m chiprd.multiplier_evidence build \
+            --candidate tasks/multiplier/int_mul16.sv \
+            --functional-report artifacts/input/phase0/multiplier/functional/report.json \
+            --formal-report artifacts/input/phase0/multiplier/formal/equivalence_report.json \
+            --mutation-report artifacts/input/phase0/multiplier/mutation/mutation_report.json \
+            --ppa-report artifacts/input/liberty/ppa/nangate45-multiplier/ppa_report.json \
+            --timing-report artifacts/input/liberty/timing/nangate45-multiplier/combinational_timing_report.json \
+            --output artifacts/multiplier-evidence
+          python3 -m chiprd.multiplier_evidence verify \
+            --manifest artifacts/multiplier-evidence/multiplier_evidence_manifest.json
+      - name: Upload unified multiplier evidence manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: multiplier-evidence-manifest
+          path: artifacts/multiplier-evidence/
+          if-no-files-found: error
