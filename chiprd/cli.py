@@ -49,6 +49,8 @@ def main() -> int:
     parser.add_argument("--clock-period-ns", type=float, default=10.0)
     parser.add_argument("--io-delay-ns", type=float, default=0.5)
     parser.add_argument("--platform-label", type=str, default="user-supplied-liberty")
+    parser.add_argument("--top-module", type=str, default="cordic_rotator",
+                        help="HDL top module for Liberty mapping (default: cordic_rotator)")
     parser.add_argument("--proposals", type=Path, default=None)
     parser.add_argument("--patch-proposal", type=Path, default=None)
     parser.add_argument("--agent-command-json", type=str, default=None)
@@ -113,6 +115,7 @@ def main() -> int:
         result = compare_area(
             args.candidate, args.liberty, args.output,
             reference=args.reference, platform_label=args.platform_label,
+            top_module=args.top_module,
         )
     elif args.mode == "audit":
         if args.audit_seed is None:
