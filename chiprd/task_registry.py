@@ -13,7 +13,7 @@ from .harness import ROOT
 
 SCHEMA = "1.0.0"
 TRACK_STATES = {"planned", "active", "complete"}
-TASK_STATES = {"planned", "runnable", "deprecated"}
+TASK_STATES = {"planned", "experimental", "runnable", "deprecated"}
 REQUIRED_EVALUATORS = {
     "functional", "protocol_formal", "sequential_equivalence",
     "mutation", "synthesis", "ppa",
@@ -82,7 +82,7 @@ def validate_registry(path: Path | None = None, *, root: Path = ROOT) -> dict:
             raise ValueError("Unknown task maturity")
         if not isinstance(task.get("title"), str) or not task["title"]:
             raise ValueError("Task title is required")
-        if state == "runnable":
+        if state in {"experimental", "runnable"}:
             for key in ("spec", "golden_rtl", "reference_rtl"):
                 _repo_file(task.get(key), root)
             interface = task.get("interface")
@@ -91,10 +91,12 @@ def validate_registry(path: Path | None = None, *, root: Path = ROOT) -> dict:
             if not isinstance(interface.get("latency_max_cycles"), int) or interface["latency_max_cycles"] <= 0:
                 raise ValueError("Runnable task requires a positive maximum latency")
             evaluation = task.get("evaluation")
-            if not isinstance(evaluation, dict) or set(evaluation) != REQUIRED_EVALUATORS:
+            if not isinstance(evaluation, dict) or not evaluation:
+                raise ValueError("Executable task must declare available evaluators")
+            if state == "runnable" and set(evaluation) != REQUIRED_EVALUATORS:
                 raise ValueError("Runnable task must declare every required evaluator")
-            objective = task.get("objective")
-            if not isinstance(objective, dict) or not isinstance(objective.get("primary"), str):
+            objective = task.get("objective", {})
+            if state == "runnable" and (not isinstance(objective, dict) or not isinstance(objective.get("primary"), str)):
                 raise ValueError("Runnable task requires an explicit objective")
     return {
         "schema_version": SCHEMA,
@@ -102,6 +104,7 @@ def validate_registry(path: Path | None = None, *, root: Path = ROOT) -> dict:
         "track_count": len(tracks),
         "task_count": len(tasks),
         "runnable_task_count": sum(x["maturity"] == "runnable" for x in tasks),
+        "experimental_task_count": sum(x["maturity"] == "experimental" for x in tasks),
         "tracks": tracks,
         "tasks": tasks,
         "status": "pass",
