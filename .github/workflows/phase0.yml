@@ -308,7 +308,7 @@ jobs:
             --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
             --tech-lef "$RUNNER_TEMP/NangateOpenCellLibrary.tech.lef" \
             --cells-lef "$RUNNER_TEMP/NangateOpenCellLibrary.macro.lef" \
-            --runs 2 --max-iterations 2 \
+            --runs 2 --max-iterations 3 \
             --max-wall-clock-seconds 3600 --max-agent-seconds 60 \
             --max-experiment-seconds 600 \
             --output artifacts/agent-ppa-campaigns/ci \
