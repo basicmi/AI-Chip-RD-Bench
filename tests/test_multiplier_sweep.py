@@ -148,6 +148,22 @@ class MultiplierSweepTests(unittest.TestCase):
         with self.patch_root, self.assertRaisesRegex(ValueError, "different mapped netlists"):
             self.build()
 
+    def test_excludes_unproven_candidate_and_ranks_only_proven_rows(self):
+        path = self.evidence / "small_slow" / "formal" / "equivalence_report.json"
+        data = json.loads(path.read_text())
+        data["status"] = "inconclusive"
+        data["proof_status"] = "inconclusive"
+        path.write_text(json.dumps(data))
+        with self.patch_root:
+            report = self.build()
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["eligible_architecture_ids"], ["baseline", "balanced"])
+        self.assertEqual(report["excluded_architectures"][0]["id"], "small_slow")
+        self.assertEqual(report["excluded_architectures"][0]["exclusion_reason"],
+                         "formal_proof_not_equivalent")
+        self.assertEqual(report["pareto_frontier"], ["balanced"])
+        self.assertNotIn("small_slow", report["pareto_frontier"])
+
     def test_refuses_output_overwrite(self):
         with self.patch_root:
             self.build()
