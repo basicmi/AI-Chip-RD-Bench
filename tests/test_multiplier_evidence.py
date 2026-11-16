@@ -132,7 +132,7 @@ class MultiplierEvidenceTests(unittest.TestCase):
         data = json.loads(self.mutation.read_text())
         data["mutations"][0]["outcome"] = "survived"
         self.mutation.write_text(json.dumps(data))
-        with self.patch_root, self.assertRaisesRegex(ValueError, "summary does not match"):
+        with self.patch_root, self.assertRaisesRegex(ValueError, "mutations survived"):
             evidence.build_manifest(*self.args)
 
     def test_detects_post_manifest_report_tampering(self):
