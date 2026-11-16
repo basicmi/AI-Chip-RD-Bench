@@ -102,6 +102,9 @@ def _inspect(candidate: Path, reports: dict[str, Path], root: Path) -> dict:
              "mutation report candidate hash mismatch")
     rows = mutation.get("mutations")
     _require(isinstance(rows, list) and bool(rows), "mutation report has no mutation rows")
+    _require(mutation.get("detected_count") == len(rows)
+             and mutation.get("mutation_score") == 1.0,
+             "mutation summary does not match its detected rows")
     _require(all(isinstance(row, dict) and row.get("outcome") == "detected" for row in rows),
              "one or more declared mutations survived")
 
@@ -140,8 +143,13 @@ def _inspect(candidate: Path, reports: dict[str, Path], root: Path) -> dict:
     _require(timing.get("report_type") == "chiprd_combinational_pre_layout_timing"
              and timing.get("timing_mode") == "input_to_output_max_delay_no_clock_no_parasitics",
              "timing report type or timing mode mismatch")
+    _require(timing.get("top_module") == "int_mul16", "timing top module mismatch")
     _require(timing.get("inputs", {}).get("candidate", {}).get("sha256") == source_hash,
              "timing report candidate hash mismatch")
+    _require(timing.get("inputs", {}).get("liberty", {}).get("sha256") == library_hash,
+             "PPA and timing reports use different Liberty libraries")
+    _require(timing.get("platform_label") == ppa.get("platform_label"),
+             "PPA and timing platform labels differ")
     timing_candidate = timing.get("candidate", {})
     timing_mapping = timing_candidate.get("mapping", {})
     timing_data = timing_candidate.get("timing", {})
@@ -152,6 +160,9 @@ def _inspect(candidate: Path, reports: dict[str, Path], root: Path) -> dict:
              "combinational mapping source hash mismatch")
     _require(timing_mapping.get("mapped_netlist_sha256") == ppa_netlist_hash,
              "PPA and timing mapped netlists differ; refuse to combine unlike implementations")
+    _require(timing_mapping.get("mapped_cell_area") == area
+             and timing_mapping.get("mapped_cell_count") == cell_count,
+             "PPA and timing mapped-cell statistics differ")
     _require(timing_data.get("critical_path_reported") is True
              and timing_data.get("meets_max_delay") is True,
              "combinational max-delay constraint did not pass")
