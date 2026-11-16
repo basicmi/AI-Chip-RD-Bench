@@ -60,9 +60,9 @@ def _constraints(inputs: list[str], outputs: list[str], max_delay_ns: float,
     )
 
 
-def _parse_timing(log: str) -> dict:
+def _parse_timing(log: str, max_delay_ns: float) -> dict:
     match = re.search(
-        r"(?m)^CHIPRD_WNS_NS\\s+([-+]?\\d+(?:\\.\\d+)?(?:[Ee][-+]?\\d+)?)\\s*$",
+        r"(?m)^CHIPRD_WNS_NS\s+([-+]?\d+(?:\.\d+)?(?:[Ee][-+]?\d+)?)\s*$",
         log,
     )
     if not match:
@@ -70,14 +70,14 @@ def _parse_timing(log: str) -> dict:
     slack = float(match.group(1))
     if not math.isfinite(slack):
         raise RuntimeError("OpenSTA max-delay slack was not finite")
-    start = re.search(r"(?m)^\\s*Startpoint:\\s+(\\S.*)$", log)
-    end = re.search(r"(?m)^\\s*Endpoint:\\s+(\\S.*)$", log)
+    start = re.search(r"(?m)^\s*Startpoint:\s+(\S.*)$", log)
+    end = re.search(r"(?m)^\s*Endpoint:\s+(\S.*)$", log)
     if not start or not end:
         raise RuntimeError("OpenSTA returned no complete constrained input-to-output path")
     return {
         "worst_max_delay_slack_ns": round(slack, 6),
         "meets_max_delay": slack >= 0,
-        "estimated_worst_path_delay_ns": None,
+        "estimated_worst_path_delay_ns": round(max_delay_ns - slack, 6),
         "critical_startpoint": start.group(1).strip(),
         "critical_endpoint": end.group(1).strip(),
         "critical_path_reported": True,
@@ -175,11 +175,11 @@ def analyze_combinational_timing(
             )
             (work / "timing.tcl").write_text(script, encoding="utf-8")
             proc = ppa._run([openroad, "-exit", "timing.tcl"], work)
-            log = proc.stdout + "\\n[stderr]\\n" + proc.stderr
+            log = proc.stdout + "\n[stderr]\n" + proc.stderr
             (output / "opensta.log").write_text(log, encoding="utf-8")
             if proc.returncode != 0:
                 raise RuntimeError(f"OpenROAD/OpenSTA failed (exit {proc.returncode})")
-            timing = _parse_timing(log)
+            timing = _parse_timing(log, delay)
             version = ppa._run([openroad, "-version"], work)
             if version.returncode != 0:
                 raise RuntimeError("Cannot determine OpenROAD version")
@@ -192,6 +192,6 @@ def analyze_combinational_timing(
         report["error_type"] = type(exc).__name__
         report["error"] = str(exc)
     (output / "combinational_timing_report.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return report
