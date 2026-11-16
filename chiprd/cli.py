@@ -116,7 +116,7 @@ def main() -> int:
             parser.error("ppa requires --candidate and --liberty")
         result = compare_area(
             args.candidate, args.liberty, args.output,
-            reference=args.reference, platform_label=args.platform_label,
+            reference=None if args.no_reference else args.reference,\n            platform_label=args.platform_label,
             top_module=args.top_module,
         )
     elif args.mode == "audit":
