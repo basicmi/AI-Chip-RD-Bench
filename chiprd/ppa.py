@@ -69,8 +69,8 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
         script = (
             "read_verilog -sv candidate.sv\n"
             "read_liberty -lib cells.lib\n"
-            f"hierarchy -check -top {TOP}\n"
-            f"synth -top {TOP} -noabc\n"
+            f"hierarchy -check -top {top_module}\n"
+            f"synth -top {top_module} -noabc\n"
             "dfflibmap -liberty cells.lib\n"
             "abc -liberty cells.lib\n"
             "clean\n"
@@ -130,6 +130,7 @@ def compare_area(
     *,
     reference: Path | None = None,
     platform_label: str = "user-supplied-liberty",
+    top_module: str = TOP,
 ) -> dict:
     """Map candidate and optional reference with the same Liberty and compare area."""
     if candidate.is_symlink() or liberty.is_symlink():
@@ -144,6 +145,8 @@ def compare_area(
         raise ValueError("Liberty file exceeds 64 MiB")
     if not platform_label or len(platform_label) > 128:
         raise ValueError("platform_label must contain 1–128 characters")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", top_module):
+        raise ValueError("top_module must be a valid HDL identifier")
     if reference is not None and reference.is_symlink():
         raise ValueError("Reference RTL must not be a symlink")
     ref = reference.resolve(strict=True) if reference is not None else None
