@@ -117,7 +117,7 @@ def run_multiplier_mutations(candidate: Path, output: Path, *, seed: int = 20261
                           encoding="utf-8")
         result = evaluate(mutant, mutant_dir / "evaluation", seed=seed,
                           random_count=random_count)
-        detected = result.get("status") == "fail"
+        detected = (result.get("functional_status") == "fail"\n                    and result.get("generic_synthesis_status") == "pass")
         rows.append({
             "mutation_id": mutation["id"],
             "mutant_sha256": _sha(mutant),
