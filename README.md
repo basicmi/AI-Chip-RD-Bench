@@ -1,3 +1,11 @@
+## Multiplier Liberty mapping (Phase 26)
+
+The Liberty mapper now accepts `--top-module` (default remains
+`cordic_rotator`) and `--no-reference` for candidate-only mapping. CI maps
+the experimental signed 16x16 multiplier against the pinned Nangate45 reference
+Liberty. This is synthesis-mapped cell area only, not physical PPA or timing.
+See [Phase 26 documentation](docs/phase26-generic-liberty-ppa.md).
+
 # AI-Chip-RD-Bench
 
 A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.

@@ -58,7 +58,7 @@ def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         raise RuntimeError(f"Yosys timed out after {TIMEOUT}s") from exc
 
 
-def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]) -> dict:
+def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str], *, top_module: str = TOP) -> dict:
     yosys = shutil.which("yosys")
     if not yosys:
         raise RuntimeError("Yosys unavailable; Liberty mapping NOT run")
@@ -69,8 +69,8 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
         script = (
             "read_verilog -sv candidate.sv\n"
             "read_liberty -lib cells.lib\n"
-            f"hierarchy -check -top {TOP}\n"
-            f"synth -top {TOP} -noabc\n"
+            f"hierarchy -check -top {top_module}\n"
+            f"synth -top {top_module} -noabc\n"
             "dfflibmap -liberty cells.lib\n"
             "abc -liberty cells.lib\n"
             "clean\n"
@@ -86,7 +86,7 @@ def _map_one(candidate: Path, liberty: Path, output: Path, known_cells: set[str]
         if proc.returncode != 0 or not (work / "mapped.json").is_file() or not (work / "mapped.v").is_file():
             raise RuntimeError(f"Yosys Liberty mapping failed (exit {proc.returncode})")
         design = json.loads((work / "mapped.json").read_text(encoding="utf-8"))
-        module = design.get("modules", {}).get(TOP)
+        module = design.get("modules", {}).get(top_module)
         if not isinstance(module, dict):
             raise RuntimeError("Mapped JSON does not contain the expected top module")
         cells = module.get("cells", {})
@@ -130,6 +130,7 @@ def compare_area(
     *,
     reference: Path | None = None,
     platform_label: str = "user-supplied-liberty",
+    top_module: str = TOP,
 ) -> dict:
     """Map candidate and optional reference with the same Liberty and compare area."""
     if candidate.is_symlink() or liberty.is_symlink():
@@ -144,6 +145,8 @@ def compare_area(
         raise ValueError("Liberty file exceeds 64 MiB")
     if not platform_label or len(platform_label) > 128:
         raise ValueError("platform_label must contain 1–128 characters")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", top_module):
+        raise ValueError("top_module must be a valid HDL identifier")
     if reference is not None and reference.is_symlink():
         raise ValueError("Reference RTL must not be a symlink")
     ref = reference.resolve(strict=True) if reference is not None else None
@@ -167,7 +170,7 @@ def compare_area(
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": "error",
         "platform_label": platform_label,
-        "top_module": TOP,
+        "top_module": top_module,
         "library": {
             "filename": liberty.name,
             "sha256": library_hash,
@@ -187,12 +190,12 @@ def compare_area(
     try:
         candidate_dir = output / "candidate"
         candidate_dir.mkdir()
-        candidate_result = _map_one(candidate, liberty, candidate_dir, known_cells)
+        candidate_result = _map_one(candidate, liberty, candidate_dir, known_cells, top_module=top_module)
         report["candidate"]["mapping"] = candidate_result
         if ref is not None:
             reference_dir = output / "reference"
             reference_dir.mkdir()
-            reference_result = _map_one(ref, liberty, reference_dir, known_cells)
+            reference_result = _map_one(ref, liberty, reference_dir, known_cells, top_module=top_module)
             report["reference"]["mapping"] = reference_result
             baseline_area = reference_result["mapped_cell_area"]
             candidate_area = candidate_result["mapped_cell_area"]

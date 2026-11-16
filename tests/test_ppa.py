@@ -52,7 +52,7 @@ class LibertyMappingTests(unittest.TestCase):
              "mapped_cell_count": 100, "mapped_cell_area": 120.0,
              "cell_type_histogram": {"INV_X1": 100}, "yosys_version": "Yosys fixture"},
         ])
-        with patch.object(ppa, "_map_one", side_effect=lambda *args: next(results)):
+        with patch.object(ppa, "_map_one", side_effect=lambda *args, **kwargs: next(results)):
             report = ppa.compare_area(
                 self.candidate, self.liberty, self.output,
                 reference=self.reference, platform_label="fixture-platform",
@@ -64,6 +64,31 @@ class LibertyMappingTests(unittest.TestCase):
         saved = json.loads((self.output / "ppa_report.json").read_text())
         self.assertEqual(saved["library"]["sha256"], report["library"]["sha256"])
         self.assertEqual(saved["reference"]["mapping"]["mapped_cell_area"], 120.0)
+
+    def test_custom_top_module_is_used_for_candidate_and_reference(self):
+        calls = []
+        def mapped(source, liberty, output, known_cells, *, top_module):
+            calls.append((source.name, top_module))
+            return {"status": "pass", "source_sha256": "a" * 64,
+                    "mapped_cell_count": 1, "mapped_cell_area": 1.0,
+                    "cell_type_histogram": {"INV_X1": 1},
+                    "yosys_version": "Yosys fixture"}
+        with patch.object(ppa, "_map_one", side_effect=mapped):
+            report = ppa.compare_area(
+                self.candidate, self.liberty, self.output,
+                reference=self.reference, top_module="int_mul16",
+            )
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["top_module"], "int_mul16")
+        self.assertEqual(calls, [("candidate.sv", "int_mul16"),
+                                 ("reference.sv", "int_mul16")])
+
+    def test_rejects_invalid_top_module(self):
+        with self.assertRaisesRegex(ValueError, "valid HDL identifier"):
+            ppa.compare_area(
+                self.candidate, self.liberty, self.output,
+                top_module="int_mul16; read_verilog evil.sv",
+            )
 
     def test_mapping_error_is_reported_not_passed(self):
         with patch.object(ppa, "_map_one", side_effect=RuntimeError("mapping failed")):
