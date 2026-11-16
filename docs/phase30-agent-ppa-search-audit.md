@@ -23,6 +23,8 @@ objective and repeated-campaign runner into one reproducible CI experiment.
 
 ## Reproduce
 
+The workflow uses `examples/agents/multi_round_mock_agent.py` to exercise two
+candidate generations; the original single-patch mock fixture remains unchanged.
 The workflow runs the campaign and audit automatically. To run locally after
 installing the pinned OSS CAD Suite, Verilator, OpenROAD and the pinned
 Nangate45 Liberty/LEF inputs:
@@ -30,7 +32,7 @@ Nangate45 Liberty/LEF inputs:
 ```bash
 source /path/to/oss-cad-suite/environment
 python3 -m chiprd.cli ppa-campaign \
-  --agent-command-json '["python3","examples/agents/mock_agent.py"]' \
+  --agent-command-json '["python3","examples/agents/multi_round_mock_agent.py"]' \
   --liberty /path/to/NangateOpenCellLibrary_typical.lib \
   --tech-lef /path/to/NangateOpenCellLibrary.tech.lef \
   --cells-lef /path/to/NangateOpenCellLibrary.macro.lef \
