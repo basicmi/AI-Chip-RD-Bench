@@ -47,7 +47,12 @@ def main() -> int:
                         help="opt in to timing-feasible Liberty mapped area during agent-loop")
     parser.add_argument("--tech-lef", type=Path, default=None)
     parser.add_argument("--cells-lef", type=Path, default=None)
-    parser.add_argument("--clock-period-ns", type=float, default=10.0)\n    parser.add_argument("--max-delay-ns", type=float, default=10.0)\n    parser.add_argument("--input-ports", type=str, default="a,b")\n    parser.add_argument("--output-ports", type=str, default="product")\n    parser.add_argument("--input-transition-ns", type=float, default=0.05)\n    parser.add_argument("--output-load-pf", type=float, default=0.002)
+    parser.add_argument("--clock-period-ns", type=float, default=10.0)
+    parser.add_argument("--max-delay-ns", type=float, default=10.0)
+    parser.add_argument("--input-ports", type=str, default="a,b")
+    parser.add_argument("--output-ports", type=str, default="product")
+    parser.add_argument("--input-transition-ns", type=float, default=0.05)
+    parser.add_argument("--output-load-pf", type=float, default=0.002)
     parser.add_argument("--io-delay-ns", type=float, default=0.5)
     parser.add_argument("--platform-label", type=str, default="user-supplied-liberty")
     parser.add_argument("--no-reference", action="store_true",
