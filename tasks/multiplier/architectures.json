@@ -11,18 +11,18 @@
       "description": "Behavioral signed multiplication; synthesis tool chooses the implementation."
     },
     {
-      "id": "radix4_booth_linear",
-      "label": "Radix-4 Booth / linear reduction",
-      "path": "tasks/multiplier/architectures/radix4_booth_linear.sv",
-      "family": "radix4-booth",
-      "description": "Nine radix-4 Booth recoded partial products accumulated serially."
+      "id": "split8x8_linear",
+      "label": "4 × 8x8 products / linear reduction",
+      "path": "tasks/multiplier/architectures/split8x8_linear.sv",
+      "family": "operand-decomposition",
+      "description": "Decomposes each operand into signed high and unsigned low bytes, then accumulates four partial products serially."
     },
     {
-      "id": "radix4_booth_tree",
-      "label": "Radix-4 Booth / balanced reduction",
-      "path": "tasks/multiplier/architectures/radix4_booth_tree.sv",
-      "family": "radix4-booth",
-      "description": "Nine radix-4 Booth recoded partial products reduced through a balanced adder tree."
+      "id": "split8x8_tree",
+      "label": "4 × 8x8 products / balanced reduction",
+      "path": "tasks/multiplier/architectures/split8x8_tree.sv",
+      "family": "operand-decomposition",
+      "description": "Uses the same four 8x8 partial products with a balanced two-level reduction tree."
     }
   ]
 }
