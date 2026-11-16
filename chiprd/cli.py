@@ -49,7 +49,9 @@ def main() -> int:
     parser.add_argument("--clock-period-ns", type=float, default=10.0)
     parser.add_argument("--io-delay-ns", type=float, default=0.5)
     parser.add_argument("--platform-label", type=str, default="user-supplied-liberty")
-    parser.add_argument("--no-reference", action="store_true",\n                        help="map only the candidate; do not map the default reference")\n    parser.add_argument("--top-module", type=str, default="cordic_rotator",
+    parser.add_argument("--no-reference", action="store_true",
+                        help="map only the candidate; do not map the default reference")
+    parser.add_argument("--top-module", type=str, default="cordic_rotator",
                         help="HDL top module for Liberty mapping (default: cordic_rotator)")
     parser.add_argument("--proposals", type=Path, default=None)
     parser.add_argument("--patch-proposal", type=Path, default=None)
