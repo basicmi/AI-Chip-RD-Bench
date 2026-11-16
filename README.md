@@ -2,7 +2,7 @@
 
 A reproducible, evidence-gated benchmark for **AI autonomous chip R&D**.
 
-## Phase 0: CORDIC Golden Task
+## Benchmark task catalog\n\nList the benchmark tracks and distinguish implemented tasks from planned coverage:\n\n```bash\npython3 -m chiprd.cli task-list\npython3 -m chiprd.cli task-validate\n```\n\nSee [the task registry and track catalog](docs/task-registry.md). CORDIC is currently the only runnable Golden Task; legacy-IP reimplementation and technology-porting tracks are planned, not yet executable.\n\n## Phase 0: CORDIC Golden Task
 
 This repository provides a fixed-point CORDIC task, reference RTL, analytic mathematical oracle, Verilator testbench, Yosys generic synthesis adapter, simulation mutation campaign, protocol-level formal checks, cycle-accurate sequential equivalence checks, sealed experiment manifests, a JSONL experiment ledger and reproducibility checks.
 
