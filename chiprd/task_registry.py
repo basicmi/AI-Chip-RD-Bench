@@ -88,8 +88,13 @@ def validate_registry(path: Path | None = None, *, root: Path = ROOT) -> dict:
             interface = task.get("interface")
             if not isinstance(interface, dict) or not isinstance(interface.get("top_module"), str):
                 raise ValueError("Runnable task requires a top-level interface contract")
-            if not isinstance(interface.get("latency_max_cycles"), int) or interface["latency_max_cycles"] <= 0:
+            if state == "runnable" and (not isinstance(interface.get("latency_max_cycles"), int) or interface["latency_max_cycles"] <= 0):
                 raise ValueError("Runnable task requires a positive maximum latency")
+            if state == "experimental" and interface.get("combinational") is not True and (
+                not isinstance(interface.get("latency_max_cycles"), int)
+                or interface["latency_max_cycles"] <= 0
+            ):
+                raise ValueError("Experimental task requires combinational or bounded-latency interface")
             evaluation = task.get("evaluation")
             if not isinstance(evaluation, dict) or not evaluation:
                 raise ValueError("Executable task must declare available evaluators")
