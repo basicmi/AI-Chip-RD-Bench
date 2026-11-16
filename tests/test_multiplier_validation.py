@@ -71,10 +71,14 @@ class MultiplierFormalTests(unittest.TestCase):
     def test_equivalence_script_lowers_each_design_before_equiv_make(self):
         script = _equivalence_script()
         self.assertLess(script.index("read_verilog -sv gold.sv"), script.index("proc"))
-        self.assertLess(script.index("proc"), script.index("rename int_mul16 gold"))
+        self.assertLess(script.index("proc"), script.index("alumacc"))
+        self.assertLess(script.index("alumacc"), script.index("opt"))
+        self.assertLess(script.index("opt"), script.index("rename int_mul16 gold"))
         self.assertLess(script.index("rename int_mul16 gold"), script.index("read_verilog -sv gate.sv"))
         self.assertLess(script.index("read_verilog -sv gate.sv"), script.rindex("proc"))
-        self.assertLess(script.rindex("proc"), script.index("rename int_mul16 gate"))
+        self.assertLess(script.rindex("proc"), script.rindex("alumacc"))
+        self.assertLess(script.rindex("alumacc"), script.rindex("opt"))
+        self.assertLess(script.rindex("opt"), script.index("rename int_mul16 gate"))
         self.assertLess(script.index("rename int_mul16 gate"), script.index("equiv_make gold gate equiv"))
 
     def test_mutation_anchor_is_unique_in_golden(self):

@@ -6,14 +6,24 @@
 - Overflow is impossible for the full 16x16-to-32-bit mathematical product.
 - Pure SystemVerilog; no proprietary IP or memory macro required.
 
-## Initial evaluator maturity
+## Evaluator maturity and architecture exploration
 
-This experimental task currently has:
-- Independent Python integer oracle.
-- Verilator vector simulation including corner cases and seeded random inputs.
-- Yosys generic synthesis smoke check.
+The multiplier remains an experimental, standalone architecture study. The
+repository includes three candidates in `tasks/multiplier/architectures.json`:
 
-It is **not yet a fully runnable benchmark task**: protocol formal, equivalence,
-mutation/negative controls, mapped PPA and post-selection audit are not yet
-implemented for this task. Do not compare its scores to the CORDIC task or use
-it in the six-gate model ranking until those evaluators are added.
+- `inferred_multiply`: behavioral `a * b` baseline.
+- `split8x8_linear`: four signed/unsigned 8x8 partial products with serial accumulation.
+- `split8x8_tree`: the same four partial products with balanced reduction.
+
+Each candidate is evaluated with the same seeded Verilator vectors, Yosys
+combinational equivalence against the immutable golden RTL, Nangate45 Liberty
+mapping, and clockless OpenSTA input-to-output max-delay constraints. The CI
+aggregator rejects source-hash mismatches, inconsistent mapped netlists,
+different Liberty libraries, or different timing constraints, then reports
+area-delay deltas and a Pareto frontier.
+
+The comparison is still an experimental architecture study, not a fully
+qualified benchmark track: candidate-specific mutation campaigns, independent
+post-selection audit, power measurement, physical implementation, and hidden
+holdout evaluation remain future work. Do not compare its scores to the
+sequential CORDIC task or include it in six-gate model rankings.

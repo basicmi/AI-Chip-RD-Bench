@@ -23,8 +23,10 @@ python3 -m chiprd.cli multiplier-mutation \
 ## Combinational formal semantics
 
 The formal evaluator builds a Yosys equivalence miter between the immutable
-multiplier Golden RTL and the submitted candidate, then runs
-`equiv_make`, `equiv_simple`, and `equiv_status -assert`. The proof covers
+multiplier Golden RTL and the submitted candidate, then canonicalizes each arithmetic network with Yosys `alumacc` and `opt` before
+running `equiv_make`, `equiv_simple`, and `equiv_status -assert`. This helps
+match equivalent multiply-accumulate structures without weakening the
+all-input proof obligation. The proof covers
 all input combinations at the declared top-level combinational interface,
 assuming the SystemVerilog frontend and Yosys equivalence model. It does not
 reuse CORDIC's clock, reset, handshake, bounded-latency or sequential EQY
