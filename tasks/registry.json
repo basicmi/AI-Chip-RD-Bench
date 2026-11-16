@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0.0",
+  "registry_id": "ai-chip-rd-bench.tasks",
+  "tracks": [
+    {
+      "track_id": "legacy_reimplementation",
+      "title": "Legacy IP reimplementation",
+      "description": "Reimplement an existing, publicly accessible legacy IP from its documented behavior and interface; measure functional fidelity, protocol correctness, maintainability and implementation quality.",
+      "maturity": "planned"
+    },
+    {
+      "track_id": "ip_feature_evolution",
+      "title": "IP rewrite, feature addition and optimization",
+      "description": "Modify an existing IP to add or improve functionality, optimize architecture or implementation, and preserve all declared compatibility requirements.",
+      "maturity": "planned"
+    },
+    {
+      "track_id": "ip_porting",
+      "title": "IP porting and technology adaptation",
+      "description": "Port an existing IP to a new interface, target technology or implementation environment while preserving its behavioral contract and measuring portability and PPA.",
+      "maturity": "planned"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "cordic.rotation.q14.v1",
+      "track_id": "ip_feature_evolution",
+      "title": "Fixed-point CORDIC rotation",
+      "maturity": "runnable",
+      "spec": "tasks/cordic/spec.md",
+      "golden_rtl": "tasks/cordic/cordic_rotator.sv",
+      "reference_rtl": "tasks/cordic/cordic_rotator.sv",
+      "interface": {
+        "top_module": "cordic_rotator",
+        "language": "systemverilog",
+        "clock": "clk",
+        "reset": {"signal": "rst", "polarity": "active_high", "synchronous": true},
+        "request_valid": "input_valid",
+        "response_valid": "output_valid",
+        "latency_max_cycles": 32,
+        "latency_contract": "bounded_variable"
+      },
+      "evaluation": {
+        "functional": "Verilator plus independent analytic oracle",
+        "protocol_formal": "SymbiYosys",
+        "sequential_equivalence": "EQY cycle-accurate",
+        "mutation": "public source-pattern mutation campaign",
+        "synthesis": "Yosys generic synthesis",
+        "ppa": "Nangate45 Liberty mapping and ideal-clock OpenSTA, pre-layout"
+      },
+      "objective": {
+        "primary": "minimize_liberty_mapped_area",
+        "hard_constraints": ["all_public_correctness_gates_pass", "setup_wns_ns_gte_0"],
+        "secondary_metrics": ["setup_wns_ns", "reported_token_usage"]
+      },
+      "limitations": [
+        "The sampled post-selection numerical audit is not a hidden holdout or formal proof.",
+        "Liberty area and ideal-clock OpenSTA are pre-layout estimates, not physical signoff."
+      ]
+    }
+  ]
+}
