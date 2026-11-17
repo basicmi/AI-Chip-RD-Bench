@@ -26,9 +26,10 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run Python unit tests
         run: python -m unittest discover -s tests -v
-      - name: Validate task catalog and run multiplier evidence gates
+      - name: Validate task catalog, CORDIC architecture space and multiplier evidence gates
         run: |
           python -m chiprd.cli task-validate
+          python -m chiprd.cli architecture-space-validate
           python -m chiprd.cli multiplier-eval --output artifacts/multiplier/functional
           python -m chiprd.cli multiplier-formal --output artifacts/multiplier/formal
           python -m chiprd.cli multiplier-mutation --audit-vectors 128 --output artifacts/multiplier/mutation
