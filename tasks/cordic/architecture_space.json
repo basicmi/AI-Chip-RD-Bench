@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "space_id": "cordic.rotation.q14.architecture-space.v1",
+  "task_id": "cordic.rotation.q14.v1",
+  "top_module": "cordic_rotator",
+  "baseline_candidate_id": "iterative_conditional_add_sub",
+  "invariants": {
+    "interface_immutable": true,
+    "latency_max_cycles": 32,
+    "numerical_tolerance_lsb": 32,
+    "reset_contract": "synchronous_active_high",
+    "request_contract": "accept_only_when_idle"
+  },
+  "dimensions": [
+    {
+      "id": "datapath_update_form",
+      "type": "enum",
+      "description": "How signed CORDIC updates are expressed in combinational RTL.",
+      "values": [
+        "conditional_add_sub",
+        "signed_delta_shared_add"
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "iterative_conditional_add_sub",
+      "rtl": "tasks/cordic/cordic_rotator.sv",
+      "configuration": {
+        "datapath_update_form": "conditional_add_sub"
+      },
+      "notes": "Golden iterative 16-stage datapath with conditional add/subtract expressions."
+    },
+    {
+      "candidate_id": "iterative_signed_delta",
+      "rtl": "tasks/cordic/cordic_rotator_refactor.sv",
+      "configuration": {
+        "datapath_update_form": "signed_delta_shared_add"
+      },
+      "notes": "Behavior-preserving signed-delta factoring; same state, interface and cycle schedule."
+    }
+  ],
+  "evaluation_policy": {
+    "mandatory": [
+      "functional",
+      "protocol_formal",
+      "sequential_equivalence",
+      "mutation",
+      "synthesis"
+    ],
+    "ppa_objective": "minimize_liberty_mapped_area_subject_to_setup_wns_ns_gte_0",
+    "selection_rule": "Only candidates passing every mandatory gate and timing feasibility may be ranked.",
+    "evidence_scope": "Pre-layout Liberty mapping and ideal-clock STA; not routed PPA or power."
+  }
+}
