@@ -74,6 +74,7 @@ jobs:
             artifacts/formal/
             artifacts/formal-negative-control/
             artifacts/multiplier-sweep/
+            artifacts/agent-ppa-campaigns/
           if-no-files-found: warn
 
   reproducible-experiment:
@@ -173,6 +174,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install Verilator for sealed Agent experiments
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
       - name: Download pinned OSS CAD Suite
         run: |
           archive="$RUNNER_TEMP/oss-cad-suite.tgz"
@@ -294,6 +299,27 @@ jobs:
               --platform-label nangate45-reference \
               --output "artifacts/multiplier-sweep/$id/timing"
           done
+      - name: Run deterministic multi-round PPA-aware Agent campaign
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli ppa-campaign \
+            --agent-command-json '["python3","examples/agents/multi_round_mock_agent.py"]' \
+            --liberty "$RUNNER_TEMP/NangateOpenCellLibrary_typical.lib" \
+            --tech-lef "$RUNNER_TEMP/NangateOpenCellLibrary.tech.lef" \
+            --cells-lef "$RUNNER_TEMP/NangateOpenCellLibrary.macro.lef" \
+            --runs 2 --max-iterations 3 \
+            --max-wall-clock-seconds 3600 --max-agent-seconds 60 \
+            --max-experiment-seconds 600 \
+            --output artifacts/agent-ppa-campaigns/ci \
+            --campaign-id phase30-ci --seed 20261116
+      - name: Independently audit every selected Agent candidate
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli ppa-campaign-audit \
+            --campaign-dir artifacts/agent-ppa-campaigns/ci \
+            --audit-seed 991977 --audit-vectors 128
       - name: Upload Liberty mapping evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -7,6 +7,7 @@ from .agent_loop import AgentLoopBudget, parse_agent_command, run_agent_loop
 from .agent_ppa import PPAObjective
 from .agent_campaign import run_agent_campaign
 from .ppa_campaign import run_ppa_campaign
+from .ppa_campaign_audit import audit_ppa_campaign
 from .audit import audit_candidate
 from .equivalence import (
     DEFAULT_REFACTOR,
@@ -34,7 +35,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "ppa-campaign-audit", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -42,6 +43,8 @@ def main() -> int:
     parser.add_argument("--loop-report", type=Path, default=None)
     parser.add_argument("--audit-seed", type=int, default=None)
     parser.add_argument("--audit-vectors", type=int, default=128)
+    parser.add_argument("--campaign-dir", type=Path, default=None,
+                        help="completed PPA campaign directory for independent post-selection audit")
     parser.add_argument("--liberty", type=Path, default=None)
     parser.add_argument("--ppa-objective", action="store_true",
                         help="opt in to timing-feasible Liberty mapped area during agent-loop")
@@ -174,6 +177,12 @@ def main() -> int:
         if args.patch_proposal is None:
             parser.error("apply-patch requires --patch-proposal")
         result = apply_patch_proposal(args.patch_proposal, args.output)
+    elif args.mode == "ppa-campaign-audit":
+        if args.campaign_dir is None or args.audit_seed is None:
+            parser.error("ppa-campaign-audit requires --campaign-dir and --audit-seed")
+        result = audit_ppa_campaign(
+            args.campaign_dir, audit_seed=args.audit_seed, vectors=args.audit_vectors,
+        )
     elif args.mode in {"agent-loop", "agent-campaign", "ppa-campaign"}:
         if args.agent_command_json is None:
             parser.error(f"{args.mode} requires --agent-command-json")

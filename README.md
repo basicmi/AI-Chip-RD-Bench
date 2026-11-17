@@ -1,3 +1,21 @@
+## Phase 30 — multi-round PPA-aware Agent search and independent audit
+
+CI now runs two controlled Agent optimization loops from the same CORDIC
+Golden RTL. Each loop exercises a two-turn feedback cycle, sealed functional
+and formal gates, Nangate45 mapped-area evaluation under pre-layout timing
+constraints, and a separate post-selection audit using fresh vectors and an
+independent seed. The CI Agent is a deterministic fixture, not a live LLM
+or a model-quality benchmark. See
+[Phase 30 methodology](docs/phase30-agent-ppa-search-audit.md).
+
+Run the independent audit on a completed PPA campaign:
+
+```bash
+python3 -m chiprd.cli ppa-campaign-audit \
+  --campaign-dir artifacts/agent-ppa-campaigns/local \
+  --audit-seed 991977 --audit-vectors 128
+```
+
 ## Phase 29 — signed multiplier architecture sweep
 
 The experimental signed 16x16 multiplier now has a small, reproducible
