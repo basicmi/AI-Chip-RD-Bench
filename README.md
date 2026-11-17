@@ -1,3 +1,17 @@
+## Phase 32 — CORDIC Architecture Generator
+
+A deterministic generator now emits 2x and 4x unrolled CORDIC RTL alongside
+the 1x Golden implementation. The arithmetic is performed in 8 or 4 compute
+cycles, while the externally visible response remains at the same 16-cycle
+boundary so the existing strict cycle-accurate EQY gate can compare traces.
+Run `python -m chiprd.cli architecture-generate --check-generated` to verify
+that checked-in RTL matches the generator, and
+`python -m chiprd.cli architecture-space-validate` to validate the updated
+candidate inventory. CI evaluates both generated candidates through the
+sealed functional/formal/equivalence/mutation/synthesis flow. This phase does
+not claim reduced transaction latency or higher throughput; see
+[Phase 32 methodology](docs/phase32-cordic-architecture-generator.md).
+
 ## Phase 31 — Architecture Search Space Contract
 
 The CORDIC task now has a machine-readable architecture-space inventory. It
