@@ -3,7 +3,7 @@
   "space_id": "cordic.rotation.q14.architecture-space.v2",
   "task_id": "cordic.rotation.q14.v1",
   "top_module": "cordic_rotator",
-  "baseline_candidate_id": "iterative_conditional_add_sub",
+  "baseline_candidate_id": "cordic_iter1",
   "invariants": {
     "interface_immutable": true,
     "latency_max_cycles": 32,
