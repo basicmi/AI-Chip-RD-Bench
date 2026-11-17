@@ -29,6 +29,7 @@ jobs:
       - name: Validate task catalog, CORDIC architecture space and multiplier evidence gates
         run: |
           python -m chiprd.cli task-validate
+          python -m chiprd.cli architecture-generate --check-generated
           python -m chiprd.cli architecture-space-validate
           python -m chiprd.cli multiplier-eval --output artifacts/multiplier/functional
           python -m chiprd.cli multiplier-formal --output artifacts/multiplier/formal
@@ -108,6 +109,18 @@ jobs:
           python3 -m chiprd.cli experiment \
             --candidate tasks/cordic/cordic_rotator.sv \
             --output artifacts/experiment
+      - name: Evaluate generated 2x and 4x CORDIC microarchitectures
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli architecture-generate --check-generated
+          python3 -m chiprd.cli architecture-space-validate
+          python3 -m chiprd.cli experiment \
+            --candidate tasks/cordic/generated/cordic_iter2.sv \
+            --output artifacts/architecture/iter2 --seed 20261117
+          python3 -m chiprd.cli experiment \
+            --candidate tasks/cordic/generated/cordic_iter4.sv \
+            --output artifacts/architecture/iter4 --seed 20261117
       - name: Reproduce experiment from its manifest
         shell: bash
         run: |
@@ -157,6 +170,7 @@ jobs:
           name: reproducible-experiment-evidence
           path: |
             artifacts/experiment/
+            artifacts/architecture/
             artifacts/reproduced/
             artifacts/search/
             artifacts/agent-patches/
