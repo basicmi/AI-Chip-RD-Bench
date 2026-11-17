@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "space_id": "cordic.rotation.q14.architecture-space.v1",
+  "space_id": "cordic.rotation.q14.architecture-space.v2",
   "task_id": "cordic.rotation.q14.v1",
   "top_module": "cordic_rotator",
   "baseline_candidate_id": "iterative_conditional_add_sub",
@@ -13,31 +13,40 @@
   },
   "dimensions": [
     {
-      "id": "datapath_update_form",
+      "id": "iterations_per_cycle",
       "type": "enum",
-      "description": "How signed CORDIC updates are expressed in combinational RTL.",
+      "description": "Number of serial CORDIC micro-iterations unrolled into each compute cycle; external response latency remains fixed at 16 cycles.",
       "values": [
-        "conditional_add_sub",
-        "signed_delta_shared_add"
+        "1",
+        "2",
+        "4"
       ]
     }
   ],
   "candidates": [
     {
-      "candidate_id": "iterative_conditional_add_sub",
+      "candidate_id": "cordic_iter1",
       "rtl": "tasks/cordic/cordic_rotator.sv",
       "configuration": {
-        "datapath_update_form": "conditional_add_sub"
+        "iterations_per_cycle": "1"
       },
-      "notes": "Golden iterative 16-stage datapath with conditional add/subtract expressions."
+      "notes": "Golden sequential one-iteration-per-cycle implementation."
     },
     {
-      "candidate_id": "iterative_signed_delta",
-      "rtl": "tasks/cordic/cordic_rotator_refactor.sv",
+      "candidate_id": "cordic_iter2",
+      "rtl": "tasks/cordic/generated/cordic_iter2.sv",
       "configuration": {
-        "datapath_update_form": "signed_delta_shared_add"
+        "iterations_per_cycle": "2"
       },
-      "notes": "Behavior-preserving signed-delta factoring; same state, interface and cycle schedule."
+      "notes": "Generated two-step combinational unroll; response pulse remains cycle-aligned to the golden implementation."
+    },
+    {
+      "candidate_id": "cordic_iter4",
+      "rtl": "tasks/cordic/generated/cordic_iter4.sv",
+      "configuration": {
+        "iterations_per_cycle": "4"
+      },
+      "notes": "Generated four-step combinational unroll; response pulse remains cycle-aligned to the golden implementation."
     }
   ],
   "evaluation_policy": {
@@ -48,6 +57,8 @@
       "mutation",
       "synthesis"
     ],
+    "latency_contract": "All variants produce output_valid at the same externally visible cycle as the golden implementation (16 active cycles after acceptance).",
+    "architecture_tradeoff": "Unroll factor trades fewer active compute cycles for a deeper combinational datapath; response is deliberately padded to preserve strict cycle-accurate EQY.",
     "ppa_objective": "minimize_liberty_mapped_area_subject_to_setup_wns_ns_gte_0",
     "selection_rule": "Only candidates passing every mandatory gate and timing feasibility may be ranked.",
     "evidence_scope": "Pre-layout Liberty mapping and ideal-clock STA; not routed PPA or power."
