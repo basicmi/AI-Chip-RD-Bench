@@ -44,6 +44,50 @@ class EquivalenceTests(unittest.TestCase):
             )
             self.assertEqual(saved["proof_status"], "error")
 
+    def test_timeout_preserves_eqy_worktree_and_solver_logs(self):
+        class TimedOutProcess:
+            pid = 12345
+            returncode = -9
+
+            def __init__(self, cwd):
+                work = Path(cwd) / "cordic_equiv"
+                work.mkdir()
+                (work / "logfile.txt").write_text("PDR solver progress\\n", encoding="utf-8")
+
+            def communicate(self, timeout=None):
+                if timeout is not None:
+                    from subprocess import TimeoutExpired
+                    raise TimeoutExpired(
+                        cmd="eqy", timeout=timeout, output=b"partial stdout",
+                        stderr=b"partial stderr",
+                    )
+                return "partial stdout", "partial stderr"
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "run"
+            with patch("chiprd.equivalence.shutil.which", side_effect=lambda name: f"/usr/bin/{name}"), \
+                 patch("chiprd.equivalence.tool_version", return_value="test-version"), \
+                 patch("chiprd.equivalence.subprocess.Popen",
+                       side_effect=lambda *args, **kwargs: TimedOutProcess(kwargs["cwd"])), \
+                 patch("chiprd.equivalence.os.killpg") as killpg:
+                report = run_equivalence(
+                    DEFAULT_REFERENCE, DEFAULT_REFACTOR, output, timeout=1
+                )
+
+            self.assertEqual(report["status"], "inconclusive")
+            self.assertEqual(report["proof_status"], "inconclusive")
+            self.assertEqual(report["timeout_seconds"], 1)
+            self.assertTrue((output / "eqy-work/cordic_equiv/logfile.txt").is_file())
+            self.assertIn(
+                "PDR solver progress",
+                (output / "eqy_logfile.txt").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "partial stdout",
+                (output / "eqy_stdout.log").read_text(encoding="utf-8"),
+            )
+            killpg.assert_called_once_with(12345, __import__("signal").SIGKILL)
+
     def test_selftest_requires_positive_and_negative_outcomes(self):
         outcomes = [
             {"status": "pass", "proof_status": "equivalent"},
