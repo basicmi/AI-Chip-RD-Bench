@@ -109,18 +109,32 @@ jobs:
           python3 -m chiprd.cli experiment \
             --candidate tasks/cordic/cordic_rotator.sv \
             --output artifacts/experiment
-      - name: Evaluate generated 2x and 4x CORDIC microarchitectures
+      - name: Evaluate generated 2x and 4x CORDIC microarchitectures independently
         shell: bash
         run: |
           source "$RUNNER_TEMP/oss-cad-suite/environment"
           python3 -m chiprd.cli architecture-generate --check-generated
           python3 -m chiprd.cli architecture-space-validate
+
+          # Do not let one inconclusive candidate suppress evidence for the other.
+          set +e
           python3 -m chiprd.cli experiment \
             --candidate tasks/cordic/generated/cordic_iter2.sv \
             --output artifacts/architecture/iter2 --seed 20261117
+          iter2_rc=$?
+          echo "CORDIC iter2 experiment exit code: $iter2_rc"
+
           python3 -m chiprd.cli experiment \
             --candidate tasks/cordic/generated/cordic_iter4.sv \
             --output artifacts/architecture/iter4 --seed 20261117
+          iter4_rc=$?
+          echo "CORDIC iter4 experiment exit code: $iter4_rc"
+
+          # Both reports have now been produced. Preserve strict gating.
+          if [ "$iter2_rc" -ne 0 ] || [ "$iter4_rc" -ne 0 ]; then
+            echo "::error::At least one generated CORDIC architecture did not pass all experiment gates (iter2=$iter2_rc, iter4=$iter4_rc)."
+            exit 1
+          fi
       - name: Reproduce experiment from its manifest
         shell: bash
         run: |
