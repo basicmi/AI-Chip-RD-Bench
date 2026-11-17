@@ -28,6 +28,7 @@ from .task_registry import validate_registry
 from .multiplier_harness import evaluate as evaluate_multiplier
 from .multiplier_validation import prove_equivalence as prove_multiplier_equivalence, run_multiplier_mutations
 from .search import SearchBudget, run_search
+from .architecture_space import validate_architecture_space
 
 
 def main() -> int:
@@ -35,7 +36,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "ppa-campaign-audit", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "ppa-campaign-audit", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing", "architecture-space-validate",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -63,6 +64,7 @@ def main() -> int:
     parser.add_argument("--top-module", type=str, default="cordic_rotator",
                         help="HDL top module for Liberty mapping (default: cordic_rotator)")
     parser.add_argument("--proposals", type=Path, default=None)
+    parser.add_argument("--architecture-space", type=Path, default=Path("tasks/cordic/architecture_space.json"))
     parser.add_argument("--patch-proposal", type=Path, default=None)
     parser.add_argument("--agent-command-json", type=str, default=None)
     parser.add_argument("--max-iterations", type=int, default=3)
@@ -101,6 +103,8 @@ def main() -> int:
             args.candidate or ROOT / "tasks/multiplier/int_mul16.sv",
             args.output, seed=args.seed,
         )
+    elif args.mode == "architecture-space-validate":
+        result = validate_architecture_space(args.architecture_space)
     elif args.mode in {"task-list", "task-validate"}:
         result = validate_registry()
         if args.mode == "task-list":
