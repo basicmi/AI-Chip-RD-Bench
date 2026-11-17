@@ -31,8 +31,8 @@ def _repo_file(root: Path, relative: object, label: str) -> Path:
     if not isinstance(relative, str) or not relative:
         raise ValueError(f"{label} must be a repository-relative path")
     path = Path(relative)
-    if path.is_absolute():
-        raise ValueError(f"{label} must be repository-relative")
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"{label} must be repository-relative and must not traverse parent directories")
     cursor = root
     for part in path.parts:
         cursor = cursor / part
