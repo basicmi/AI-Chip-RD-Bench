@@ -146,7 +146,10 @@ def run_equivalence(reference: Path, candidate: Path, output: Path,
         )
         (output / "eqy_logfile.txt").write_text(log_text, encoding="utf-8")
         if work.exists():
-            shutil.copytree(work, output / "eqy-work", dirs_exist_ok=True)
+            diagnostic_dir = output / "eqy-work"
+            if diagnostic_dir.exists():
+                shutil.rmtree(diagnostic_dir)
+            shutil.copytree(work, diagnostic_dir)
 
         combined = "\n".join((stdout or "", stderr or "", log_text))
         if timed_out:
