@@ -29,6 +29,7 @@ from .multiplier_harness import evaluate as evaluate_multiplier
 from .multiplier_validation import prove_equivalence as prove_multiplier_equivalence, run_multiplier_mutations
 from .search import SearchBudget, run_search
 from .architecture_space import validate_architecture_space
+from .architecture_generator import write_generated_architectures
 
 
 def main() -> int:
@@ -36,7 +37,7 @@ def main() -> int:
     parser.add_argument("mode", choices=[
         "smoke", "verify", "synth", "all", "mutation", "formal",
         "formal-negative-control", "equivalence", "equivalence-selftest",
-        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "ppa-campaign-audit", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing", "architecture-space-validate",
+        "experiment", "reproduce", "search", "apply-patch", "agent-loop", "agent-campaign", "ppa-campaign", "ppa-campaign-audit", "audit", "ppa", "timing", "task-list", "task-validate", "multiplier-eval", "multiplier-formal", "multiplier-mutation", "comb-timing", "architecture-space-validate", "architecture-generate",
     ])
     parser.add_argument("--candidate", type=Path, default=None)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
@@ -65,6 +66,9 @@ def main() -> int:
                         help="HDL top module for Liberty mapping (default: cordic_rotator)")
     parser.add_argument("--proposals", type=Path, default=None)
     parser.add_argument("--architecture-space", type=Path, default=Path("tasks/cordic/architecture_space.json"))
+    parser.add_argument("--architecture-output", type=Path, default=Path("tasks/cordic/generated"))
+    parser.add_argument("--iterations-per-cycle", type=int, nargs="+", default=[2, 4])
+    parser.add_argument("--check-generated", action="store_true", help="verify generated RTL is current without writing files")
     parser.add_argument("--patch-proposal", type=Path, default=None)
     parser.add_argument("--agent-command-json", type=str, default=None)
     parser.add_argument("--max-iterations", type=int, default=3)
@@ -105,6 +109,12 @@ def main() -> int:
         )
     elif args.mode == "architecture-space-validate":
         result = validate_architecture_space(args.architecture_space)
+    elif args.mode == "architecture-generate":
+        result = write_generated_architectures(
+            args.architecture_output,
+            configurations=tuple(args.iterations_per_cycle),
+            check=args.check_generated,
+        )
     elif args.mode in {"task-list", "task-validate"}:
         result = validate_registry()
         if args.mode == "task-list":
