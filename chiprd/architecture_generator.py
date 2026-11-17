@@ -128,8 +128,11 @@ def write_generated_architectures(
 ) -> dict:
     """Write or verify generated RTL under the repository root."""
     output_dir = Path(output_dir)
-    if output_dir.is_symlink():
-        raise ValueError("Generated RTL output directory must not be a symlink")
+    cursor = output_dir
+    while cursor != cursor.parent:
+        if cursor.is_symlink():
+            raise ValueError("Generated RTL output path must not traverse symlinks")
+        cursor = cursor.parent
     resolved = output_dir.resolve()
     try:
         resolved.relative_to(ROOT.resolve())
@@ -140,7 +143,8 @@ def write_generated_architectures(
     if not configurations:
         raise ValueError("At least one architecture configuration is required")
     for value in configurations:
-        if value not in SUPPORTED_ITERATIONS_PER_CYCLE:
+        if (isinstance(value, bool) or not isinstance(value, int)
+                or value not in SUPPORTED_ITERATIONS_PER_CYCLE):
             raise ValueError(f"Unsupported iterations_per_cycle: {value}")
 
     if not check:
