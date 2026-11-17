@@ -39,6 +39,29 @@ class ArchitectureSpaceTests(unittest.TestCase):
                  "configuration": {"datapath_update_form": "signed_delta_shared_add"}},
             ],
         }
+        (self.root / "tasks/cordic/spec.md").write_text("# fixture task\\n", encoding="utf-8")
+        registry = {
+            "schema_version": "1.0.0",
+            "registry_id": "ai-chip-rd-bench.tasks",
+            "tracks": [{
+                "track_id": "feature", "title": "Feature evolution",
+                "description": "Fixture", "maturity": "active",
+            }],
+            "tasks": [{
+                "task_id": "cordic.rotation.q14.v1", "track_id": "feature",
+                "title": "CORDIC", "maturity": "runnable",
+                "spec": "tasks/cordic/spec.md",
+                "golden_rtl": "tasks/cordic/baseline.sv",
+                "reference_rtl": "tasks/cordic/baseline.sv",
+                "interface": {"top_module": "cordic_rotator", "latency_max_cycles": 32},
+                "evaluation": {key: "declared" for key in (
+                    "functional", "protocol_formal", "sequential_equivalence",
+                    "mutation", "synthesis", "ppa",
+                )},
+                "objective": {"primary": "minimize_area"},
+            }],
+        }
+        (self.root / "tasks/registry.json").write_text(json.dumps(registry), encoding="utf-8")
         self.path = self.root / "tasks/cordic/architecture_space.json"
         self.write()
 
