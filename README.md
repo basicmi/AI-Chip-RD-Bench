@@ -1,3 +1,18 @@
+## Phase 31 — Architecture Search Space Contract
+
+The CORDIC task now has a machine-readable architecture-space inventory. It
+binds explicit datapath-update choices to concrete RTL files, records fixed
+task invariants, checks candidate/configuration coverage and emits SHA-256
+source fingerprints. Validate it with:
+
+```bash
+python -m chiprd.cli architecture-space-validate
+```
+
+This is a provenance and inventory gate, not an RTL generator or proof of
+architectural completeness. See
+[Phase 31 methodology](docs/phase31-architecture-search-space.md).
+
 ## Phase 30 — multi-round PPA-aware Agent search and independent audit
 
 CI now runs two controlled Agent optimization loops from the same CORDIC
