@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import signal
 import subprocess
 import tempfile
 from datetime import datetime, timezone
@@ -101,36 +103,62 @@ def run_equivalence(reference: Path, candidate: Path, output: Path,
             "sby": tool_version("sby", ["--version"]),
         }
 
-        with tempfile.TemporaryDirectory(prefix="chiprd-eqy-") as temp:
-            work = Path(temp)
-            shutil.copyfile(reference, work / "gold.sv")
-            shutil.copyfile(candidate, work / "gate.sv")
-            config = work / "cordic_equiv.eqy"
-            config.write_text(make_eqy_config(), encoding="utf-8")
+        # Keep the EQY work directory until its terminal status is known.  In
+        # particular, never let TemporaryDirectory erase solver/partition state
+        # when the proof times out.
+        work = Path(tempfile.mkdtemp(prefix="chiprd-eqy-"))
+        report["eqy_workdir"] = str(output / "eqy-work")
+        shutil.copyfile(reference, work / "gold.sv")
+        shutil.copyfile(candidate, work / "gate.sv")
+        config = work / "cordic_equiv.eqy"
+        config.write_text(make_eqy_config(), encoding="utf-8")
 
-            proc = subprocess.run(
-                [eqy, "-f", config.name],
-                cwd=work,
-                text=True,
-                capture_output=True,
-                timeout=timeout,
-                check=False,
+        proc = subprocess.Popen(
+            [eqy, "-f", config.name],
+            cwd=work,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            timed_out = False
+        except subprocess.TimeoutExpired as exc:
+            # EQY launches SBY/solver children. Kill the whole process group so
+            # CI does not leave orphaned proof processes behind.
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            partial_out, partial_err = proc.communicate()
+            stdout = partial_out or (exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else exc.stdout or "")
+            stderr = partial_err or (exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr or "")
+            timed_out = True
+
+        (output / "eqy_stdout.log").write_text(stdout or "", encoding="utf-8")
+        (output / "eqy_stderr.log").write_text(stderr or "", encoding="utf-8")
+        eqy_work = work / "cordic_equiv"
+        eqy_log = eqy_work / "logfile.txt"
+        log_text = (
+            eqy_log.read_text(encoding="utf-8", errors="replace")
+            if eqy_log.exists() else ""
+        )
+        (output / "eqy_logfile.txt").write_text(log_text, encoding="utf-8")
+        if work.exists():
+            shutil.copytree(work, output / "eqy-work", dirs_exist_ok=True)
+
+        combined = "\n".join((stdout or "", stderr or "", log_text))
+        if timed_out:
+            status, proof_status = "inconclusive", "inconclusive"
+            report.update(
+                status=status,
+                proof_status=proof_status,
+                error=f"EQY timed out after {timeout} seconds",
+                timeout_seconds=timeout,
+                eqy_summary="timeout; diagnostic work directory preserved",
             )
-            stdout, stderr = proc.stdout or "", proc.stderr or ""
-            (output / "eqy_stdout.log").write_text(stdout, encoding="utf-8")
-            (output / "eqy_stderr.log").write_text(stderr, encoding="utf-8")
-
-            eqy_work = work / "cordic_equiv"
-            eqy_log = eqy_work / "logfile.txt"
-            log_text = (
-                eqy_log.read_text(encoding="utf-8", errors="replace")
-                if eqy_log.exists() else ""
-            )
-            (output / "eqy_logfile.txt").write_text(log_text, encoding="utf-8")
-            if eqy_work.exists():
-                shutil.copytree(eqy_work, output / "eqy-work", dirs_exist_ok=True)
-
-            combined = "\n".join((stdout, stderr, log_text))
+        else:
             status, proof_status = classify_eqy(proc.returncode, combined)
             report.update(
                 status=status,
@@ -144,12 +172,10 @@ def run_equivalence(reference: Path, candidate: Path, output: Path,
             )
             if status == "error":
                 report["error"] = "Unable to establish an EQY PASS/FAIL result; inspect logs"
-    except subprocess.TimeoutExpired:
-        report.update(
-            status="inconclusive",
-            proof_status="inconclusive",
-            error=f"EQY timed out after {timeout} seconds",
-        )
+        # Successful/definitive runs need only the compact logs; retain the
+        # full solver tree for inconclusive/error results.
+        if status in {"pass", "fail"}:
+            shutil.rmtree(work, ignore_errors=True)
     except (RuntimeError, OSError, subprocess.SubprocessError, ValueError) as exc:
         report.update(status="error", proof_status="error", error=str(exc))
 
