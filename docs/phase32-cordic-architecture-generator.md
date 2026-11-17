@@ -50,6 +50,22 @@ paths outside the repository and symlink traversal. Its output is
 deterministic and SHA-256 fingerprints are included in the sealed experiment
 evaluator manifest.
 
+## EQY diagnostics and independent candidate runs
+
+The sequential-equivalence harness writes the EQY stdout/stderr and terminal
+log into each candidate's evidence directory. If EQY is inconclusive, errors,
+or reaches its wall-clock timeout, it also preserves the complete EQY work
+directory (including generated partitions and solver work files) under
+`eqy-work/`. The report records the configured timeout and diagnostic path.
+On timeout, the harness terminates the EQY process group so SBY/solver child
+processes do not remain orphaned on the runner.
+
+The CI evaluates Iter2 and Iter4 in separate experiment invocations and
+collects both exit codes before applying the overall gate. A failure or
+inconclusive proof for one candidate therefore does not suppress the other
+candidate's evidence. The job remains failed unless both candidates pass all
+mandatory experiment gates.
+
 ## Validation
 
 CI runs each generated candidate through the sealed experiment flow:
