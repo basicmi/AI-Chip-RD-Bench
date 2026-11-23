@@ -100,3 +100,33 @@ requests and returned values while allowing implementation-specific response
 latency within the task's 32-cycle bound. Only after that proof exists should
 the benchmark expose genuine latency/throughput tradeoffs as searchable
 objectives.
+
+## Verified EQY bottleneck from PR #33 evidence
+
+The November 17 PR run [44053195939](https://github.com/basicmi/AI-Chip-RD-Bench/actions/runs/44053195939) retained full EQY partition and PDR logs for both generated candidates. The same four partitions appeared for Iter2 and Iter4:
+
+| Partition | Result | Interpretation |
+|---|---|---|
+| `cordic_rotator.busy` | PASS | Control state behavior proved equivalent |
+| `cordic_rotator.output_valid` | PASS | Response-valid timing proved equivalent |
+| `cordic_rotator.x_out` | TIMEOUT | PDR timed out under the configured 180-second strategy budget |
+| `cordic_rotator.y_out` | interrupted | Global 300-second EQY timeout ended the run before the partition finished |
+
+Neither result proves nor disproves numerical equivalence. In particular,
+`y_out` must not be labeled an independently timed-out partition merely
+because its outer EQY run ended.
+
+The new `chiprd.eqy_diagnostics` command reads the archived EQY worktrees,
+records each partition's observed terminal state, and emits
+`artifacts/architecture/eqy_diagnostics.json`. This summary is diagnostic
+only and does not change experiment acceptance criteria. Both Iter2 and Iter4
+must still pass all required gates.
+
+The architectural proof bottleneck is the relationship between sequential
+Golden CORDIC states and 2x/4x unrolled states. The next substantive step is
+a *compositional* proof: a full-width bitvector lemma for k repeated Golden
+microsteps versus one generated macrostep, an inductive boundary-state
+relation for valid iteration boundaries, and an interface/control proof that
+establishes the exact externally visible trace. Only such a sound composed
+proof, or a completed full EQY proof, can justify calling an implementation
+equivalent. Longer timeouts or sampled numerical checks do not.
