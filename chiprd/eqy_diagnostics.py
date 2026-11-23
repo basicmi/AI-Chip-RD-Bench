@@ -19,7 +19,7 @@ PARTITION_MARKER = re.compile(r"\b(partition|pdr|solver|engine|strategy)\b", re.
 
 
 def _status(path: Path) -> dict:
-    report_path = path / "equivalence" / "equivalence_report.json"
+    report_path = path / "equivalence-candidate" / "equivalence_report.json"
     if not report_path.is_file():
         raise ValueError(f"Missing mandatory EQY report: {report_path}")
     obj = json.loads(report_path.read_text(encoding="utf-8"))
@@ -45,7 +45,7 @@ def _status(path: Path) -> dict:
 def summarize_candidate(path: Path) -> dict:
     path = Path(path)
     result = _status(path)
-    worktree = path / "equivalence" / "eqy-work"
+    worktree = path / "equivalence-candidate" / "eqy-work"
     result["diagnostic_worktree_present"] = worktree.is_dir()
     result["log_excerpts"] = []
     result["worktree_file_count"] = 0
