@@ -120,6 +120,12 @@ class ArchitectureSpaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not declare top module"):
             validate_architecture_space(self.path, root=self.root)
 
+    def test_rejects_declared_baseline_that_is_not_golden_rtl(self):
+        self.payload["baseline_candidate_id"] = "signed_delta"
+        self.write()
+        with self.assertRaisesRegex(ValueError, "baseline candidate RTL must match"):
+            validate_architecture_space(self.path, root=self.root)
+
     def test_rejects_baseline_not_in_candidate_pool(self):
         self.payload["baseline_candidate_id"] = "missing"
         self.write()

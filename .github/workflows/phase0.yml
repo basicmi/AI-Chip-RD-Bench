@@ -29,6 +29,7 @@ jobs:
       - name: Validate task catalog, CORDIC architecture space and multiplier evidence gates
         run: |
           python -m chiprd.cli task-validate
+          python -m chiprd.cli architecture-generate --check-generated
           python -m chiprd.cli architecture-space-validate
           python -m chiprd.cli multiplier-eval --output artifacts/multiplier/functional
           python -m chiprd.cli multiplier-formal --output artifacts/multiplier/formal
@@ -108,6 +109,40 @@ jobs:
           python3 -m chiprd.cli experiment \
             --candidate tasks/cordic/cordic_rotator.sv \
             --output artifacts/experiment
+      - name: Evaluate generated 2x and 4x CORDIC microarchitectures independently
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cli architecture-generate --check-generated
+          python3 -m chiprd.cli architecture-space-validate
+
+          # Do not let one inconclusive candidate suppress evidence for the other.
+          set +e
+          python3 -m chiprd.cli experiment \
+            --candidate tasks/cordic/generated/cordic_iter2.sv \
+            --output artifacts/architecture/iter2 --seed 20261117
+          iter2_rc=$?
+          echo "CORDIC iter2 experiment exit code: $iter2_rc"
+
+          python3 -m chiprd.cli experiment \
+            --candidate tasks/cordic/generated/cordic_iter4.sv \
+            --output artifacts/architecture/iter4 --seed 20261117
+          iter4_rc=$?
+          echo "CORDIC iter4 experiment exit code: $iter4_rc"
+
+          # Summarize individual EQY partitions and solver outcomes before
+          # returning failure; preserve the raw evidence for both variants.
+          python3 -m chiprd.eqy_diagnostics \
+            --iter2 artifacts/architecture/iter2 \
+            --iter4 artifacts/architecture/iter4 \
+            --output artifacts/architecture/eqy_diagnostics.json
+          diagnostic_rc=$?
+
+          # No partial/inconclusive result can make this gate green.
+          if [ "$iter2_rc" -ne 0 ] || [ "$iter4_rc" -ne 0 ] || [ "$diagnostic_rc" -ne 0 ]; then
+            echo "::error::Generated CORDIC architecture verification incomplete (iter2=$iter2_rc, iter4=$iter4_rc, diagnostics=$diagnostic_rc). Inspect artifacts/architecture/eqy_diagnostics.json and each EQY worktree."
+            exit 1
+          fi
       - name: Reproduce experiment from its manifest
         shell: bash
         run: |
@@ -157,6 +192,7 @@ jobs:
           name: reproducible-experiment-evidence
           path: |
             artifacts/experiment/
+            artifacts/architecture/
             artifacts/reproduced/
             artifacts/search/
             artifacts/agent-patches/
