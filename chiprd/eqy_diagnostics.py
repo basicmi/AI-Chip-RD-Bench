@@ -47,6 +47,31 @@ def summarize_candidate(path: Path) -> dict:
     result = _status(path)
     worktree = path / "equivalence-candidate" / "eqy-work"
     result["diagnostic_worktree_present"] = worktree.is_dir()
+    # Extract terminal EQY partition states from the authoritative logfile.
+    # A started partition is NOT a proved partition.
+    partition_log = worktree / "cordic_equiv" / "logfile.txt"
+    partition_list = worktree / "cordic_equiv" / "partition.list"
+    partitions = {}
+    if partition_list.is_file():
+        for line in partition_list.read_text(encoding="utf-8", errors="replace").splitlines():
+            fields = line.split()
+            if len(fields) >= 2:
+                partitions[fields[1]] = "not_started"
+    if partition_log.is_file():
+        for line in partition_log.read_text(encoding="utf-8", errors="replace").splitlines():
+            started = re.search(r"Running strategy .* on '([^']+)'", line)
+            passed = re.search(r"Proved equivalence of partition '([^']+)'", line)
+            timed_out = re.search(r"Could not prove equivalence of partition '([^']+)'.*: timeout", line)
+            not_proven = re.search(r"Could not prove equivalence of partition '([^']+)'", line)
+            if started:
+                partitions[started.group(1)] = "running_or_interrupted"
+            if passed:
+                partitions[passed.group(1)] = "pass"
+            if timed_out:
+                partitions[timed_out.group(1)] = "timeout"
+            elif not_proven:
+                partitions[not_proven.group(1)] = "not_proven"
+    result["partitions"] = dict(sorted(partitions.items()))
     result["log_excerpts"] = []
     result["worktree_file_count"] = 0
     result["truncated"] = False
