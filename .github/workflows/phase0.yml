@@ -115,7 +115,7 @@ jobs:
         shell: bash
         run: |
           source "$RUNNER_TEMP/oss-cad-suite/environment"
-          python3 -m chiprd.cordic_macrostep_proof \\
+          python3 -m chiprd.cordic_macrostep_proof \
             --output artifacts/architecture/macrostep-lemma
       - name: Evaluate generated 2x and 4x CORDIC microarchitectures independently
         shell: bash
