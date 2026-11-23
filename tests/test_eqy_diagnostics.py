@@ -23,6 +23,17 @@ class EQYDiagnosticsTests(unittest.TestCase):
                 "partition outputs: engine abc pdr UNKNOWN\n"
             )
 
+            (p / "equivalence-candidate/eqy-work/cordic_equiv/partition.list").write_text(
+                "cordic_rotator cordic_rotator.busy xbits : busy[0]\\n"
+                "cordic_rotator cordic_rotator.x_out xbits : x_out[15:0]\\n"
+                "cordic_rotator cordic_rotator.y_out xbits : y_out[15:0]\\n"
+            )
+            (p / "equivalence-candidate/eqy-work/cordic_equiv/logfile.txt").write_text(
+                "Proved equivalence of partition 'cordic_rotator.busy' using strategy 'pdr'\\n"
+                "Could not prove equivalence of partition 'cordic_rotator.x_out' using strategy 'pdr': timeout\\n"
+                "Running strategy 'pdr' on 'cordic_rotator.y_out'..\\n"
+            )
+
     def tearDown(self):
         self.tmp.cleanup()
 
@@ -34,7 +45,10 @@ class EQYDiagnosticsTests(unittest.TestCase):
             row = summary["candidates"][name]
             self.assertEqual(row["proof_status"], "inconclusive")
             self.assertTrue(row["diagnostic_worktree_present"])
-            self.assertEqual(row["worktree_file_count"], 1)
+            self.assertEqual(row["worktree_file_count"], 3)
+            self.assertEqual(row["partitions"]["cordic_rotator.busy"], "pass")
+            self.assertEqual(row["partitions"]["cordic_rotator.x_out"], "timeout")
+            self.assertEqual(row["partitions"]["cordic_rotator.y_out"], "running_or_interrupted")
             self.assertIn("UNKNOWN", row["log_excerpts"][0]["last_status_lines"][0])
         self.assertTrue((self.root / "summary.json").exists())
 
