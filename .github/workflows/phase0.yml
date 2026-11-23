@@ -130,9 +130,17 @@ jobs:
           iter4_rc=$?
           echo "CORDIC iter4 experiment exit code: $iter4_rc"
 
-          # Both reports have now been produced. Preserve strict gating.
-          if [ "$iter2_rc" -ne 0 ] || [ "$iter4_rc" -ne 0 ]; then
-            echo "::error::At least one generated CORDIC architecture did not pass all experiment gates (iter2=$iter2_rc, iter4=$iter4_rc)."
+          # Summarize individual EQY partitions and solver outcomes before
+          # returning failure; preserve the raw evidence for both variants.
+          python3 -m chiprd.eqy_diagnostics \
+            --iter2 artifacts/architecture/iter2 \
+            --iter4 artifacts/architecture/iter4 \
+            --output artifacts/architecture/eqy_diagnostics.json
+          diagnostic_rc=$?
+
+          # No partial/inconclusive result can make this gate green.
+          if [ "$iter2_rc" -ne 0 ] || [ "$iter4_rc" -ne 0 ] || [ "$diagnostic_rc" -ne 0 ]; then
+            echo "::error::Generated CORDIC architecture verification incomplete (iter2=$iter2_rc, iter4=$iter4_rc, diagnostics=$diagnostic_rc). Inspect artifacts/architecture/eqy_diagnostics.json and each EQY worktree."
             exit 1
           fi
       - name: Reproduce experiment from its manifest
