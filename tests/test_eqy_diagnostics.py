@@ -13,13 +13,13 @@ class EQYDiagnosticsTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.paths = [self.root / name for name in ("iter2", "iter4")]
         for p in self.paths:
-            (p / "equivalence/eqy-work/cordic_equiv/partitions").mkdir(parents=True)
-            (p / "equivalence/equivalence_report.json").write_text(json.dumps({
+            (p / "equivalence-candidate/eqy-work/cordic_equiv/partitions").mkdir(parents=True)
+            (p / "equivalence-candidate/equivalence_report.json").write_text(json.dumps({
                 "status": "inconclusive", "proof_status": "inconclusive",
                 "candidate_sha256": "a" * 64, "reference_sha256": "b" * 64,
                 "error": "EQY timed out after 300 seconds", "timeout_seconds": 300,
             }))
-            (p / "equivalence/eqy-work/cordic_equiv/partitions/logfile.txt").write_text(
+            (p / "equivalence-candidate/eqy-work/cordic_equiv/partitions/logfile.txt").write_text(
                 "partition outputs: engine abc pdr UNKNOWN\n"
             )
 
@@ -39,23 +39,23 @@ class EQYDiagnosticsTests(unittest.TestCase):
         self.assertTrue((self.root / "summary.json").exists())
 
     def test_requires_both_candidates_to_have_explicit_pass(self):
-        first = self.paths[0] / "equivalence/equivalence_report.json"
+        first = self.paths[0] / "equivalence-candidate/equivalence_report.json"
         first.write_text(json.dumps({"status": "pass", "proof_status": "equivalent"}))
         self.assertEqual(summarize_candidates(*self.paths, self.root / "partial.json")["status"],
                          "fail")
-        second = self.paths[1] / "equivalence/equivalence_report.json"
+        second = self.paths[1] / "equivalence-candidate/equivalence_report.json"
         second.write_text(json.dumps({"status": "pass", "proof_status": "equivalent"}))
         self.assertEqual(summarize_candidates(*self.paths, self.root / "pass.json")["status"],
                          "pass")
 
     def test_rejects_unsubstantiated_pass(self):
-        path = self.paths[0] / "equivalence/equivalence_report.json"
+        path = self.paths[0] / "equivalence-candidate/equivalence_report.json"
         path.write_text(json.dumps({"status": "pass", "proof_status": "inconclusive"}))
         with self.assertRaisesRegex(ValueError, "Inconsistent"):
             summarize_candidate(self.paths[0])
 
     def test_missing_candidate_report_is_not_success(self):
-        (self.paths[1] / "equivalence/equivalence_report.json").unlink()
+        (self.paths[1] / "equivalence-candidate/equivalence_report.json").unlink()
         with self.assertRaisesRegex(ValueError, "Missing mandatory"):
             summarize_candidates(*self.paths, self.root / "missing.json")
 
