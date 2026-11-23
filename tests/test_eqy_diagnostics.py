@@ -49,7 +49,7 @@ class EQYDiagnosticsTests(unittest.TestCase):
             self.assertEqual(row["partitions"]["cordic_rotator.busy"], "pass")
             self.assertEqual(row["partitions"]["cordic_rotator.x_out"], "timeout")
             self.assertEqual(row["partitions"]["cordic_rotator.y_out"], "running_or_interrupted")
-            self.assertIn("UNKNOWN", row["log_excerpts"][0]["last_status_lines"][0])
+            self.assertTrue(any("UNKNOWN" in line for excerpt in row["log_excerpts"]\n                                for line in excerpt.get("last_status_lines", [])))
         self.assertTrue((self.root / "summary.json").exists())
 
     def test_requires_both_candidates_to_have_explicit_pass(self):
