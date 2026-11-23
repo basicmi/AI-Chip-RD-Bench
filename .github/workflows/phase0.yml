@@ -109,6 +109,14 @@ jobs:
           python3 -m chiprd.cli experiment \
             --candidate tasks/cordic/cordic_rotator.sv \
             --output artifacts/experiment
+      # A source-bound, full-width bitvector lemma for each unroll boundary.
+      # This is an additional gate, NOT a replacement for sequential EQY.
+      - name: Prove CORDIC macrostep bitvector lemma
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/oss-cad-suite/environment"
+          python3 -m chiprd.cordic_macrostep_proof \
+            --output artifacts/architecture/macrostep-lemma
       - name: Evaluate generated 2x and 4x CORDIC microarchitectures independently
         shell: bash
         run: |
