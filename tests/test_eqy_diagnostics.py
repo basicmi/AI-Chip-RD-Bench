@@ -24,14 +24,14 @@ class EQYDiagnosticsTests(unittest.TestCase):
             )
 
             (p / "equivalence-candidate/eqy-work/cordic_equiv/partition.list").write_text(
-                "cordic_rotator cordic_rotator.busy xbits : busy[0]\\n"
-                "cordic_rotator cordic_rotator.x_out xbits : x_out[15:0]\\n"
-                "cordic_rotator cordic_rotator.y_out xbits : y_out[15:0]\\n"
+                "cordic_rotator cordic_rotator.busy xbits : busy[0]\n"
+                "cordic_rotator cordic_rotator.x_out xbits : x_out[15:0]\n"
+                "cordic_rotator cordic_rotator.y_out xbits : y_out[15:0]\n"
             )
             (p / "equivalence-candidate/eqy-work/cordic_equiv/logfile.txt").write_text(
-                "Proved equivalence of partition 'cordic_rotator.busy' using strategy 'pdr'\\n"
-                "Could not prove equivalence of partition 'cordic_rotator.x_out' using strategy 'pdr': timeout\\n"
-                "Running strategy 'pdr' on 'cordic_rotator.y_out'..\\n"
+                "Proved equivalence of partition 'cordic_rotator.busy' using strategy 'pdr'\n"
+                "Could not prove equivalence of partition 'cordic_rotator.x_out' using strategy 'pdr': timeout\n"
+                "Running strategy 'pdr' on 'cordic_rotator.y_out'..\n"
             )
 
     def tearDown(self):
@@ -49,7 +49,8 @@ class EQYDiagnosticsTests(unittest.TestCase):
             self.assertEqual(row["partitions"]["cordic_rotator.busy"], "pass")
             self.assertEqual(row["partitions"]["cordic_rotator.x_out"], "timeout")
             self.assertEqual(row["partitions"]["cordic_rotator.y_out"], "running_or_interrupted")
-            self.assertTrue(any("UNKNOWN" in line for excerpt in row["log_excerpts"]\n                                for line in excerpt.get("last_status_lines", [])))
+            self.assertTrue(any("UNKNOWN" in line for excerpt in row["log_excerpts"]
+                                for line in excerpt.get("last_status_lines", [])))
         self.assertTrue((self.root / "summary.json").exists())
 
     def test_requires_both_candidates_to_have_explicit_pass(self):
